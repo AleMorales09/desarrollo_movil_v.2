@@ -1,9 +1,87 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, Image } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, Image, Modal, Animated } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { auth } from '../src/config/firebaseConfig';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { LinearGradient } from "expo-linear-gradient";
+
+const CustomAlert = ({ visible, type, title, message, onClose }) => {
+  const fadeAnim = React.useRef(new Animated.Value(0)).current;
+
+  React.useEffect(() => {
+    if (visible) {
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [visible]);
+
+  const getIconAndColor = () => {
+    switch (type) {
+      case "success":
+        return { icon: "check-circle", color: "#05f7c2", iconColor: "#00d9a6" };
+      case "error":
+        return { icon: "exclamation-circle", color: "#ff6b6b", iconColor: "#ff5252" };
+      default:
+        return { icon: "info-circle", color: "#64bae8", iconColor: "#4a9ed9" };
+    }
+  };
+
+  const { icon, color, iconColor } = getIconAndColor();
+
+  return (
+    <Modal
+      transparent
+      visible={visible}
+      animationType="none"
+      onRequestClose={onClose}
+    >
+      <View style={styles.alertOverlay}>
+        <Animated.View
+          style={[
+            styles.alertContainer,
+            {
+              opacity: fadeAnim,
+              transform: [
+                {
+                  scale: fadeAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0.8, 1],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
+          <LinearGradient
+            colors={["#ffffff", "#f8f9fa"]}
+            style={styles.alertContent}
+          >
+            <View style={[styles.alertIconContainer, { backgroundColor: color + "20" }]}>
+              <FontAwesome name={icon} size={40} color={iconColor} />
+            </View>
+            <Text style={styles.alertTitle}>{title}</Text>
+            <Text style={styles.alertMessage}>{message}</Text>
+            <TouchableOpacity
+              style={[styles.alertButton, { backgroundColor: color }]}
+              onPress={onClose}
+            >
+              <Text style={styles.alertButtonText}>Aceptar</Text>
+            </TouchableOpacity>
+          </LinearGradient>
+        </Animated.View>
+      </View>
+    </Modal>
+  );
+};
 
 export default function NuevoPaciente({ navigation }) {
   const [firstName, setFirstName] = useState('');
@@ -13,22 +91,43 @@ export default function NuevoPaciente({ navigation }) {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [alertConfig, setAlertConfig] = useState({
+    visible: false,
+    type: "info",
+    title: "",
+    message: "",
+  });
+
+  const showAlert = (type, title, message) => {
+    setAlertConfig({ visible: true, type, title, message });
+    if (type === "success") {
+      setTimeout(() => {
+        setAlertConfig((prev) => ({ ...prev, visible: false }));
+        navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+      }, 3000);
+    }
+  };
+
+  const closeAlert = () => {
+    setAlertConfig({ ...alertConfig, visible: false });
+  };
 
   const handleSignUp = async () => {
     if (!firstName || !lastName || !email || !password || !confirmPassword) {
-      Alert.alert("Error", "Todos los campos son obligatorios.");
+      showAlert("error", "Campos obligatorios", "Todos los campos son obligatorios.");
       return;
     }
 
     if (password !== confirmPassword) {
-      Alert.alert("Error", "Las contraseñas no coinciden.");
+      showAlert("error", "Contraseñas no coinciden", "Las contraseñas no coinciden.");
       return;
     }
 
     const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d]{6,}$/;
     if (!passwordRegex.test(password)) {
-      Alert.alert(
-        "Error",
+      showAlert(
+        "error",
+        "Contraseña inválida",
         "La contraseña debe tener al menos 6 caracteres, incluyendo una letra mayúscula, una minúscula y un número."
       );
       return;
@@ -36,25 +135,30 @@ export default function NuevoPaciente({ navigation }) {
 
     try {
       await createUserWithEmailAndPassword(auth, email, password);
-      Alert.alert("Registro exitoso", "Usuario registrado con éxito.");
-      navigation.reset({ index: 0, routes: [{ name: 'Login' }] }); 
+      showAlert("success", "Registro exitoso", "Usuario registrado con éxito.");
+      // La navegación se hace en showAlert después de 3 segundos
     } catch (error) {
       let errorMessage = "Hubo un problema al registrar el usuario.";
+      let errorTitle = "Error";
       switch (error.code) {
         case 'auth/email-already-in-use':
+          errorTitle = "Correo en uso";
           errorMessage = "El correo electrónico ya está en uso.";
           break;
         case 'auth/invalid-email':
+          errorTitle = "Correo inválido";
           errorMessage = "El formato del correo electrónico no es válido.";
           break;
         case 'auth/weak-password':
+          errorTitle = "Contraseña débil";
           errorMessage = "La contraseña es demasiado débil.";
           break;
         case 'auth/network-request-failed':
+          errorTitle = "Sin conexión";
           errorMessage = "Error de conexión, por favor intenta más tarde.";
           break;
       }
-      Alert.alert("Error", errorMessage);
+      showAlert("error", errorTitle, errorMessage);
     }
   };
 
@@ -129,8 +233,19 @@ export default function NuevoPaciente({ navigation }) {
         </TouchableOpacity>
 
         <TouchableOpacity onPress={() => navigation.navigate('Login')}>
-          <Text style={styles.signUpText}>¿Ya tienes cuenta? Inicia sesión</Text>
+          <Text style={styles.signUpText}>
+            ¿Ya tienes cuenta?{" "}
+            <Text style={styles.subtitle}>Inicia sesión</Text>
+          </Text>
         </TouchableOpacity>
+
+        <CustomAlert
+          visible={alertConfig.visible}
+          type={alertConfig.type}
+          title={alertConfig.title}
+          message={alertConfig.message}
+          onClose={closeAlert}
+        />
       {/* </View> */}
     </LinearGradient>
   );
@@ -190,7 +305,60 @@ const styles = StyleSheet.create({
   },
   signUpText: {
     marginTop: 20,
-    color: '#ffffffff',
+    color: '#fff',
+    textAlign: 'center',
+  },
+  subtitle: {
+    fontSize: 15,
+    fontStyle: "italic",
+    color: "#fff", // blanco
+    fontWeight: "bold",
+    textDecorationLine: "underline",
+  },
+  alertOverlay: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
+  },
+  alertContainer: {
+    width: "80%",
+    borderRadius: 10,
+    overflow: "hidden",
+    elevation: 5,
+  },
+  alertContent: {
+    padding: 20,
+    borderRadius: 10,
+  },
+  alertIconContainer: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 15,
+  },
+  alertTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    marginBottom: 10,
+    textAlign: "center",
+  },
+  alertMessage: {
+    fontSize: 14,
+    marginBottom: 20,
+    textAlign: "center",
+  },
+  alertButton: {
+    paddingVertical: 10,
+    borderRadius: 25,
+    alignItems: "center",
+  },
+  alertButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "bold",
   },
 });
 

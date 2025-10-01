@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons'; // Para usar iconos
 import Home from '../screens/Home';
 import Pacientes from '../screens/Pacientes';
 import NuevoPaciente from '../screens/NuevoPaciente';
+import Perfil from '../screens/Perfil';
 
 
 const Tab = createBottomTabNavigator();
@@ -27,6 +28,9 @@ function AppTabs() {
           else if (route.name === 'Pacientes') {
             iconName = focused ? 'people' : 'people-outline';
           }
+          else if (route.name === 'Perfil') {
+            iconName = focused ? 'person-circle' : 'person-circle-outline';
+          }
 
           // Puedes retornar cualquier componente
           return <Ionicons name={iconName} size={size} color={color} />;
@@ -40,6 +44,7 @@ function AppTabs() {
       <Tab.Screen name="Pacientes" component={Pacientes} />
       {/* <Stack.Screen name="NuevoPaciente" component={NuevoPaciente} /> */}
       {/* <Tab.Screen name="Perfil" component={Perfil} /> */}
+      <Tab.Screen name="Perfil" component={Perfil} />
     </Tab.Navigator>
   );
 }

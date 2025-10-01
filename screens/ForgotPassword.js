@@ -1,27 +1,26 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  Image,
   Modal,
   StatusBar,
-  ScrollView,
   Animated,
+  ScrollView,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { FontAwesome } from "@expo/vector-icons";
-import { signInWithEmailAndPassword } from "firebase/auth";
+import { sendPasswordResetEmail } from "firebase/auth";
 import { auth } from "../src/config/firebaseConfig";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 
 // Componente de Alerta Personalizada
 const CustomAlert = ({ visible, type, title, message, onClose }) => {
-  const fadeAnim = React.useRef(new Animated.Value(0)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (visible) {
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -96,10 +95,8 @@ const CustomAlert = ({ visible, type, title, message, onClose }) => {
   );
 };
 
-export default function Login({ navigation }) {
+export default function ForgotPassword({ navigation }) {
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
   const [alertConfig, setAlertConfig] = useState({
     visible: false,
     type: "info",
@@ -112,58 +109,41 @@ export default function Login({ navigation }) {
     if (type === "success") {
       setTimeout(() => {
         setAlertConfig((prev) => ({ ...prev, visible: false }));
-        // Aquí puedes navegar si lo necesitas
-        // navigation.reset({ index: 0, routes: [{ name: "App" }] });
-      }, 3000); // 3000 ms = 3 segundos
+        navigation.navigate("Login");
+      }, 3000);
     }
   };
 
   const closeAlert = () => {
     setAlertConfig({ ...alertConfig, visible: false });
-    // Si quieres navegar después de cerrar manualmente la alerta de éxito:
-    // if (alertConfig.type === "success") {
-    //   navigation.reset({ index: 0, routes: [{ name: "App" }] });
-    // }
   };
 
-  const handleLogin = async () => {
-    if (!email || !password) {
-      showAlert("error", "¡los campos están vacíos!", "Por favor, ingrese sus datos.");
+  const handleResetPassword = async () => {
+    if (!email) {
+      showAlert("error", "Campo vacío", "Por favor ingrese su correo electrónico.");
       return;
     }
     try {
-      await signInWithEmailAndPassword(auth, email, password);
-      // showAlert("success", "¡Bienvenido!", "Se inició sesión correctamente.");
-      // Espera 3 segundos antes de navegar
-      setTimeout(() => {
-        // Si quieres navegar manualmente, descomenta la siguiente línea:
-        // navigation.reset({ index: 0, routes: [{ name: "App" }] });
-      }, 3000);
+      await sendPasswordResetEmail(auth, email);
+      showAlert(
+        "success",
+        "Correo enviado",
+        "Se ha enviado un correo para restablecer la contraseña."
+      );
     } catch (error) {
-      let errorMessage = "Hubo un problema al iniciar sesión.";
-      let errorTitle = "E-mail y/o contraseña incorrecta";
+      let errorMessage = "Hubo un problema al enviar el correo.";
       switch (error.code) {
         case "auth/invalid-email":
-          errorTitle = "Correo inválido";
-          errorMessage = "Por favor, verifique su correo.";
+          errorMessage = "El formato del correo electrónico no es válido.";
           break;
-        case "auth/wrong-password":
         case "auth/user-not-found":
-          errorTitle = "E-mail y/o contraseña incorrecta";
-          errorMessage = "Por favor, verifique sus datos.";
+          errorMessage = "No existe una cuenta con ese correo.";
           break;
         case "auth/network-request-failed":
-          errorTitle = "Sin conexión";
           errorMessage = "Error de conexión, intenta más tarde.";
           break;
-        case "auth/invalid-credential":
-          errorTitle = "E-mail y/o contraseña incorrecta";
-          errorMessage = "Por favor, verifique sus datos.";
-          break;
-        default:
-          errorMessage = error.message;
       }
-      showAlert("error", errorTitle, errorMessage);
+      showAlert("error", "Error", errorMessage);
     }
   };
 
@@ -177,83 +157,38 @@ export default function Login({ navigation }) {
       >
         <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
           <View style={styles.root}>
-            {/* Imagen odontológica arriba con degradado superpuesto */}
-            <View style={styles.headerImageContainer}>
-              <Image
-                source={require("../assets/foto-slider-4-1.png")}
-                style={styles.headerImage}
-                resizeMode="cover"
-              />
-              <LinearGradient
-                colors={["rgba(250, 245, 245, 0)", "#fff"]}
-                style={StyleSheet.absoluteFill}
-                start={{ x: 0.5, y: 0.0 }}
-                end={{ x: 0.5, y: 1.0 }}
-              />
-            </View>
-
-            {/* Degradado debajo de la imagen */}
             <LinearGradient
               colors={["#ffffffff", "#9fe2cfff"]}
               style={styles.gradient}
             >
               <View style={styles.card}>
-                <Text style={styles.title}>Iniciar sesión</Text>
-                <Image
-                  source={require("../assets/copia.png")}
-                  style={styles.logo}
-                  resizeMode="contain"
-                />
-                <Text style={styles.label}>Correo</Text>
+                <Text style={styles.title}>Restablecer Contraseña</Text>
+                <Text style={styles.label}>Correo electrónico</Text>
                 <View style={styles.inputGroup}>
                   <TextInput
                     style={styles.input}
-                    placeholder="Correo electrónico"
+                    placeholder="Ingrese su correo"
                     value={email}
                     onChangeText={setEmail}
                     keyboardType="email-address"
                     autoCapitalize="none"
+                    placeholderTextColor="#888"
                   />
                 </View>
-                <Text style={styles.label}>Contraseña</Text>
-                <View style={styles.inputGroup}>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Ingrese su contraseña"
-                    value={password}
-                    onChangeText={setPassword}
-                    secureTextEntry={!showPassword}
-                  />
-                  <TouchableOpacity
-                    onPress={() => setShowPassword(!showPassword)}
-                    style={styles.eyeButton}
-                  >
-                    <FontAwesome
-                      name={showPassword ? "eye-slash" : "eye"}
-                      size={18}
-                      color="#555"
-                    />
-                  </TouchableOpacity>
-                </View>
-                <TouchableOpacity style={styles.button} onPress={handleLogin}>
-                  <Text style={styles.buttonText}>INGRESAR</Text>
+                <TouchableOpacity style={styles.button} onPress={handleResetPassword}>
+                  <Text style={styles.buttonText}>Enviar correo</Text>
                 </TouchableOpacity>
-                <TouchableOpacity onPress={() => navigation.navigate("SignUp")}>
+                <TouchableOpacity onPress={() => navigation.navigate("Login")}>
                   <Text style={styles.signUpText}>
-                    ¿No tenés cuenta?{" "}
-                    <Text style={styles.subtitle}>Regístrate</Text>
+                    ¿Ya tenés cuenta?{" "}
+                    <Text style={styles.subtitle}>Inicia sesión</Text>
                   </Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => navigation.navigate("ForgotPassword")}>
-                  <Text style={styles.forgotText}>¿Olvidaste tu contraseña?</Text>
                 </TouchableOpacity>
               </View>
             </LinearGradient>
           </View>
         </ScrollView>
       </KeyboardAwareScrollView>
-
-      {/* Alerta Personalizada */}
       <CustomAlert
         visible={alertConfig.visible}
         type={alertConfig.type}
@@ -270,21 +205,12 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#fff",
   },
-  headerImageContainer: {
-    position: "relative",
-    width: "100%",
-    height: 220,
-    overflow: "hidden",
-  },
-  headerImage: {
-    width: "100%",
-    height: "100%",
-  },
   gradient: {
     flex: 1,
     paddingHorizontal: 20,
-    paddingTop: 30,
+    paddingTop: 60,
     alignItems: "center",
+    justifyContent: "center",
   },
   card: {
     width: "100%",
@@ -293,19 +219,16 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 20,
     elevation: 4,
+    alignSelf: "center",
+    marginTop: 40,
+    marginBottom: 40,
   },
   title: {
     fontSize: 24,
     fontWeight: "bold",
     color: "#222",
-    marginBottom: 5,
-    textAlign: "center",
-  },
-  logo: {
-    width: 150,
-    height: 150,
-    alignSelf: "center",
     marginBottom: 16,
+    textAlign: "center",
   },
   label: {
     fontSize: 14,
@@ -329,9 +252,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#333",
   },
-  eyeButton: {
-    padding: 5,
-  },
   button: {
     backgroundColor: "#05f7c2",
     paddingVertical: 12,
@@ -343,6 +263,7 @@ const styles = StyleSheet.create({
     color: "#000",
     fontSize: 16,
     fontWeight: "bold",
+    //textDecorationLine: "underline",
   },
   signUpText: {
     marginTop: 20,
@@ -354,14 +275,7 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
     color: "#05f7c2",
     fontWeight: "bold",
-    textDecorationLine: "underline", // <-- subraya el texto
-  },
-  forgotText: {
-    marginTop: 10,
-    color: "#555",
-    textAlign: "center",
-    fontWeight: "bold", // negritas
-    textDecorationLine: "underline", // subrayado
+    textDecorationLine: "underline",
   },
   // Estilos de la alerta personalizada
   alertOverlay: {

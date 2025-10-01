@@ -8,7 +8,8 @@ import Login from '../screens/Login';
 import SignUp from '../screens/SignUp';
 import NuevoPaciente from '../screens/NuevoPaciente';
 // Importa el nuevo componente que contiene el menú inferior
-import AppTabs from './AppTabs'; 
+import AppTabs from './AppTabs';
+import ForgotPassword from '../screens/ForgotPassword';
 
 const Stack = createStackNavigator();
 
@@ -47,6 +48,7 @@ function Navigation() {
           <>
             <Stack.Screen name="Login" component={Login} />
             <Stack.Screen name="SignUp" component={SignUp} />
+            <Stack.Screen name="ForgotPassword" component={ForgotPassword} />
             {/* <Stack.Screen name="NuevoPaciente" component={NuevoPaciente} /> */}
           </>
         )}
