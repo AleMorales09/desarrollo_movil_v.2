@@ -133,7 +133,7 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   alertButton: {
-    width: "100%",
+    width: "50%",
     paddingVertical: 14,
     borderRadius: 25,
     alignItems: "center",

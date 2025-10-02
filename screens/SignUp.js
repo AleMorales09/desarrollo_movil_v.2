@@ -19,6 +19,7 @@ export default function SignUp({ navigation }) {
   const [firstNameError, setFirstNameError] = useState(false);
   const [lastNameError, setLastNameError] = useState(false);
   const [emailError, setEmailError] = useState(false);
+  const [showPasswordMatchInfo, setShowPasswordMatchInfo] = useState(false);
 
   const [alertConfig, setAlertConfig] = useState({
     visible: false,
@@ -26,6 +27,7 @@ export default function SignUp({ navigation }) {
     title: "",
     message: "",
   });
+  
 
   const showAlert = (type, title, message) => {
     setAlertConfig({ visible: true, type, title, message });
@@ -150,6 +152,20 @@ export default function SignUp({ navigation }) {
       showAlert("error", "Error", errorMessage);
     }
   };
+
+  const PasswordMatchInfo = ({ meets }) => (
+    <View style={styles.passwordMatchContainer}>
+      <FontAwesome
+        name={meets ? "check" : "times"} // Check si coinciden, X si no
+        size={18}
+        color={meets ? "#05f7c2" : "#ff6b6b"} // Verde si coinciden, rojo si no
+        style={styles.passwordMatchIcon}
+      />
+      <Text style={[styles.passwordMatchText, { color: meets ? "#05f7c2" : "#ff6b6b" }]}>
+        {meets ? "Las contraseñas coinciden" : "Las contraseñas no coinciden"}
+      </Text>
+    </View>
+  );
 
   return (
     <>
@@ -363,20 +379,20 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: "bold",
     color: "#222",
-    marginBottom: 20,
+    marginBottom: 10,
     textAlign: "center",
   },
   logo: {
     width: 100,
     height: 100,
     alignSelf: "center",
-    marginBottom: 20,
+    marginBottom: 10,
     borderColor: "#4ae4c2d6",
     borderWidth: 4,
     borderRadius: 50,
   },
   label: {
-    fontSize: 14,
+    fontSize: 18,
     fontWeight: "bold",
     color: "#333",
     marginBottom: 5,
@@ -429,9 +445,10 @@ const styles = StyleSheet.create({
     marginTop: 20,
     color: "#555",
     textAlign: "center",
+    fontSize: 16,
   },
   subtitle: {
-    fontSize: 15,
+    fontSize: 17,
     fontStyle: "italic",
     color: "#05f7c2",
     fontWeight: "bold",

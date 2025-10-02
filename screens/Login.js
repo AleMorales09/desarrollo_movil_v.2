@@ -48,7 +48,7 @@ export default function Login({ navigation }) {
 
   const handleLogin = async () => {
     if (!email || !password) {
-      showAlert("error", "¡Los campos están vacíos!", "Por favor, ingrese sus datos.");
+      showAlert("error", "Por favor, ingrese ambos campos.");
       return;
     }
     try {
@@ -61,7 +61,7 @@ export default function Login({ navigation }) {
       }, 3000);
     } catch (error) {
       let errorMessage = "Hubo un problema al iniciar sesión.";
-      let errorTitle = "E-mail y/o contraseña incorrecta";
+      let errorTitle = "E-mail y/o contraseña incorrectos";
       switch (error.code) {
         case "auth/invalid-email":
           errorTitle = "Correo inválido";
@@ -77,13 +77,13 @@ export default function Login({ navigation }) {
           errorMessage = "Error de conexión, intenta más tarde.";
           break;
         case "auth/invalid-credential":
-          errorTitle = "E-mail y/o contraseña incorrecta";
+          errorTitle = "E-mail y/o contraseña incorrectos";
           errorMessage = "Por favor, verifique sus datos.";
           break;
         default:
           errorMessage = error.message;
       }
-      showAlert("error", errorTitle, errorMessage);
+      showAlert("Error", errorTitle, errorMessage);
     }
   };
 
@@ -93,7 +93,7 @@ export default function Login({ navigation }) {
       <KeyboardAwareScrollView
         contentContainerStyle={{ flexGrow: 1 }}
         enableOnAndroid={true}
-        extraScrollHeight={20}
+        extraScrollHeight={0}
       >
         <View style={styles.root}>
           {/* Imagen odontológica arriba con degradado superpuesto */}
@@ -206,32 +206,34 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   card: {
-    width: "100%",
+    width: "95%",
     maxWidth: 400,
     backgroundColor: "#FFFFFF", // corregido
     borderRadius: 8,
     padding: 20,
-    elevation: 4,
+    elevation: 30,
+    marginBottom: 0,
+    marginTop: -20,
   },
   title: {
     fontSize: 24,
     fontWeight: "bold",
     color: "#222",
-    marginBottom: 30,
+    marginBottom: 15,
     textAlign: "center",
   },
   logo: {
     width: 100,
     height: 100,
     alignSelf: "center",
-    marginBottom: 30,
+    marginBottom: 20,
     borderColor: "#4ae4c2d6",
     borderWidth: 4,
     borderRadius: 50,
     padding: 40,
   },
   label: {
-    fontSize: 14,
+    fontSize: 18,
     fontWeight: "bold",
     color: "#333",
     marginBottom: 5,
@@ -273,9 +275,10 @@ const styles = StyleSheet.create({
     marginTop: 30,
     color: "#555",
     textAlign: "center",
+    fontSize: 16,
   },
   subtitle: {
-    fontSize: 15,
+    fontSize: 17,
     fontStyle: "italic",
     color: "#05f7c2",
     fontWeight: "bold",
@@ -288,6 +291,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontWeight: "bold",
     //textDecorationLine: "underline",
-    fontSize: 14,
+    fontSize: 16,
   },
 });
