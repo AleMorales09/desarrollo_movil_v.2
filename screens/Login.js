@@ -6,95 +6,15 @@ import {
   TouchableOpacity,
   StyleSheet,
   Image,
-  Modal,
   StatusBar,
   ScrollView,
-  Animated,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { FontAwesome } from "@expo/vector-icons";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "../src/config/firebaseConfig";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
-
-// Componente de Alerta Personalizada
-const CustomAlert = ({ visible, type, title, message, onClose }) => {
-  const fadeAnim = React.useRef(new Animated.Value(0)).current;
-
-  React.useEffect(() => {
-    if (visible) {
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 300,
-        useNativeDriver: true,
-      }).start();
-    } else {
-      Animated.timing(fadeAnim, {
-        toValue: 0,
-        duration: 200,
-        useNativeDriver: true,
-      }).start();
-    }
-  }, [visible]);
-
-  const getIconAndColor = () => {
-    switch (type) {
-      case "success":
-        return { icon: "check-circle", color: "#05f7c2", iconColor: "#00d9a6" };
-      case "error":
-        return { icon: "exclamation-circle", color: "#ff6b6b", iconColor: "#ff5252" };
-      default:
-        return { icon: "info-circle", color: "#64bae8", iconColor: "#4a9ed9" };
-    }
-  };
-
-  const { icon, color, iconColor } = getIconAndColor();
-
-  return (
-    <Modal
-      transparent
-      visible={visible}
-      animationType="none"
-      onRequestClose={onClose}
-    >
-      <View style={styles.alertOverlay}>
-        <Animated.View
-          style={[
-            styles.alertContainer,
-            {
-              opacity: fadeAnim,
-              transform: [
-                {
-                  scale: fadeAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0.8, 1],
-                  }),
-                },
-              ],
-            },
-          ]}
-        >
-          <LinearGradient
-            colors={["#ffffff", "#f8f9fa"]}
-            style={styles.alertContent}
-          >
-            <View style={[styles.alertIconContainer, { backgroundColor: color + "20" }]}>
-              <FontAwesome name={icon} size={40} color={iconColor} />
-            </View>
-            <Text style={styles.alertTitle}>{title}</Text>
-            <Text style={styles.alertMessage}>{message}</Text>
-            <TouchableOpacity
-              style={[styles.alertButton, { backgroundColor: color }]}
-              onPress={onClose}
-            >
-              <Text style={styles.alertButtonText}>Aceptar</Text>
-            </TouchableOpacity>
-          </LinearGradient>
-        </Animated.View>
-      </View>
-    </Modal>
-  );
-};
+import Alert from "../components/Alert";
 
 export default function Login({ navigation }) {
   const [email, setEmail] = useState("");
@@ -114,7 +34,7 @@ export default function Login({ navigation }) {
         setAlertConfig((prev) => ({ ...prev, visible: false }));
         // Aquí puedes navegar si lo necesitas
         // navigation.reset({ index: 0, routes: [{ name: "App" }] });
-      }, 3000); // 3000 ms = 3 segundos
+      }, 3000);
     }
   };
 
@@ -128,7 +48,7 @@ export default function Login({ navigation }) {
 
   const handleLogin = async () => {
     if (!email || !password) {
-      showAlert("error", "¡los campos están vacíos!", "Por favor, ingrese sus datos.");
+      showAlert("error", "¡Los campos están vacíos!", "Por favor, ingrese sus datos.");
       return;
     }
     try {
@@ -175,86 +95,85 @@ export default function Login({ navigation }) {
         enableOnAndroid={true}
         extraScrollHeight={20}
       >
-        <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
-          <View style={styles.root}>
-            {/* Imagen odontológica arriba con degradado superpuesto */}
-            <View style={styles.headerImageContainer}>
-              <Image
-                source={require("../assets/foto-slider-4-1.png")}
-                style={styles.headerImage}
-                resizeMode="cover"
-              />
-              <LinearGradient
-                colors={["rgba(250, 245, 245, 0)", "#fff"]}
-                style={StyleSheet.absoluteFill}
-                start={{ x: 0.5, y: 0.0 }}
-                end={{ x: 0.5, y: 1.0 }}
-              />
-            </View>
-
-            {/* Degradado debajo de la imagen */}
+        <View style={styles.root}>
+          {/* Imagen odontológica arriba con degradado superpuesto */}
+          <View style={styles.headerImageContainer}>
+            <Image
+              source={require("../assets/foto-slider-4-1.png")}
+              style={styles.headerImage}
+              resizeMode="cover"
+            />
             <LinearGradient
-              colors={["#ffffffff", "#9fe2cfff"]}
-              style={styles.gradient}
-            >
-              <View style={styles.card}>
-                <Text style={styles.title}>Iniciar sesión</Text>
-                <Image
-                  source={require("../assets/copia.png")}
-                  style={styles.logo}
-                  resizeMode="contain"
+              colors={["rgba(250, 245, 245, 0)", "#fff"]}
+              style={StyleSheet.absoluteFill}
+              start={{ x: 0.5, y: 0.0 }}
+              end={{ x: 0.5, y: 1.0 }}
+            />
+          </View>
+
+          {/* Degradado debajo de la imagen */}
+          <LinearGradient
+            colors={["#FFFFFF", "#9FE2CF"]}
+            style={styles.gradient}
+          >
+            <View style={styles.card}>
+              <Text style={styles.title}>Iniciar Sesión</Text>
+              <Image
+                source={require("../assets/copia.png")}
+                style={styles.logo}
+                resizeMode="contain"
+              />
+              <Text style={styles.label}>Correo</Text>
+              <View style={styles.inputGroup}>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Correo electrónico"
+                  value={email}
+                  onChangeText={setEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
                 />
-                <Text style={styles.label}>Correo</Text>
-                <View style={styles.inputGroup}>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Correo electrónico"
-                    value={email}
-                    onChangeText={setEmail}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
+              </View>
+              <Text style={styles.label}>Contraseña</Text>
+              <View style={styles.inputGroup}>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Ingrese su contraseña"
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry={!showPassword}
+                />
+                <TouchableOpacity
+                  onPress={() => setShowPassword(!showPassword)}
+                  style={styles.eyeButton}
+                >
+                  <FontAwesome
+                    name={showPassword ? "eye-slash" : "eye"}
+                    size={18}
+                    color="#555"
                   />
-                </View>
-                <Text style={styles.label}>Contraseña</Text>
-                <View style={styles.inputGroup}>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Ingrese su contraseña"
-                    value={password}
-                    onChangeText={setPassword}
-                    secureTextEntry={!showPassword}
-                  />
-                  <TouchableOpacity
-                    onPress={() => setShowPassword(!showPassword)}
-                    style={styles.eyeButton}
-                  >
-                    <FontAwesome
-                      name={showPassword ? "eye-slash" : "eye"}
-                      size={18}
-                      color="#555"
-                    />
-                  </TouchableOpacity>
-                </View>
-                <TouchableOpacity style={styles.button} onPress={handleLogin}>
-                  <Text style={styles.buttonText}>INGRESAR</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => navigation.navigate("SignUp")}>
-                  <Text style={styles.signUpText}>
-                    ¿No tenés cuenta?{" "}
-                    <Text style={styles.subtitle}>Regístrate</Text>
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => navigation.navigate("ForgotPassword")}>
-                  <Text style={styles.forgotText}>¿Olvidaste tu contraseña?</Text>
                 </TouchableOpacity>
               </View>
-            </LinearGradient>
-          </View>
-        </ScrollView>
+              {/* Botón de "¿Olvidaste tu contraseña?" debajo del campo de contraseña */}
+              <TouchableOpacity onPress={() => navigation.navigate("ForgotPassword")}>
+                <Text style={styles.forgotLink}>¿Olvidaste tu contraseña?</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.button} onPress={handleLogin}>
+                <Text style={styles.buttonText}>INGRESAR</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => navigation.navigate("SignUp")}>
+                <Text style={styles.signUpText}>
+                  ¿No tenés cuenta?{" "}
+                  <Text style={styles.subtitle}>Regístrate</Text>
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </LinearGradient>
+        </View>
       </KeyboardAwareScrollView>
 
       {/* Alerta Personalizada */}
-      <CustomAlert
+      <Alert
         visible={alertConfig.visible}
         type={alertConfig.type}
         title={alertConfig.title}
@@ -289,7 +208,7 @@ const styles = StyleSheet.create({
   card: {
     width: "100%",
     maxWidth: 400,
-    backgroundColor: "#ffffffff",
+    backgroundColor: "#FFFFFF", // corregido
     borderRadius: 8,
     padding: 20,
     elevation: 4,
@@ -298,14 +217,18 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: "bold",
     color: "#222",
-    marginBottom: 5,
+    marginBottom: 30,
     textAlign: "center",
   },
   logo: {
-    width: 150,
-    height: 150,
+    width: 100,
+    height: 100,
     alignSelf: "center",
-    marginBottom: 16,
+    marginBottom: 30,
+    borderColor: "#4ae4c2d6",
+    borderWidth: 4,
+    borderRadius: 50,
+    padding: 40,
   },
   label: {
     fontSize: 14,
@@ -338,6 +261,8 @@ const styles = StyleSheet.create({
     borderRadius: 25,
     alignItems: "center",
     marginTop: 10,
+    width: '60%',
+    alignSelf: "center",
   },
   buttonText: {
     color: "#000",
@@ -345,7 +270,7 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
   signUpText: {
-    marginTop: 20,
+    marginTop: 30,
     color: "#555",
     textAlign: "center",
   },
@@ -354,68 +279,15 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
     color: "#05f7c2",
     fontWeight: "bold",
-    textDecorationLine: "underline", // <-- subraya el texto
+    //textDecorationLine: "underline",
   },
-  forgotText: {
-    marginTop: 10,
-    color: "#555",
-    textAlign: "center",
-    fontWeight: "bold", // negritas
-    textDecorationLine: "underline", // subrayado
-  },
-  // Estilos de la alerta personalizada
-  alertOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  alertContainer: {
-    width: "85%",
-    maxWidth: 350,
-    borderRadius: 20,
-    overflow: "hidden",
-    elevation: 10,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-  },
-  alertContent: {
-    padding: 25,
-    alignItems: "center",
-  },
-  alertIconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 20,
-  },
-  alertTitle: {
-    fontSize: 22,
-    fontWeight: "bold",
-    color: "#222",
-    marginBottom: 12,
-    textAlign: "center",
-  },
-  alertMessage: {
-    fontSize: 15,
-    color: "#555",
-    textAlign: "center",
+  forgotLink: {
+    marginTop: 15,
     marginBottom: 25,
-    lineHeight: 22,
-  },
-  alertButton: {
-    width: "100%",
-    paddingVertical: 14,
-    borderRadius: 25,
-    alignItems: "center",
-  },
-  alertButtonText: {
-    color: "#fff",
-    fontSize: 16,
+    color: "#2196F3",
+    textAlign: "center",
     fontWeight: "bold",
+    //textDecorationLine: "underline",
+    fontSize: 14,
   },
 });
