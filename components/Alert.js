@@ -36,7 +36,7 @@ const Alert = ({ visible, type, title, message, onClose }) => {
       case "error":
         return { icon: "exclamation-circle", color: "#ff6b6b", iconColor: "#ff5252" };
       default:
-        return { icon: "info-circle", color: "#64bae8", iconColor: "#4a9ed9" };
+        return { icon: "info-circle", color: "#ff6b6b", iconColor: "#ff5252" };
     }
   };
 

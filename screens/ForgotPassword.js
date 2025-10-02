@@ -46,7 +46,7 @@ export default function ForgotPassword({ navigation }) {
       showAlert(
         "success",
         "Correo enviado",
-        "Se ha enviado un correo para restablecer su contraseña."
+        "Se ha enviado un correo para restablecer su contraseña, recuerde verificar su casilla de spam"
       );
     } catch (error) {
       let errorMessage = "Hubo un problema al enviar el correo.";

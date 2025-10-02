@@ -84,10 +84,16 @@ export default function SignUp({ navigation }) {
 
   // Validaciones en tiempo real para la contraseña
   const passwordChecks = useMemo(() => ({
+    hasCase: /[a-z]/.test(password),
     hasUppercase: /[A-Z]/.test(password),
     hasNumber: /\d/.test(password),
     hasMinLength: password.length >= 6,
   }), [password]);
+
+  const passwordsMatch = useMemo(() => {
+    // Solo verificar si ambas contraseñas tienen algún valor y son iguales
+    return password.length > 0 && confirmPassword.length > 0 && password === confirmPassword;
+  }, [password, confirmPassword]);
 
   const handleSignUp = async () => {
     if (!firstName || !lastName || !email || !password || !confirmPassword) {
@@ -153,6 +159,30 @@ export default function SignUp({ navigation }) {
     }
   };
 
+
+  // --- NUEVA FUNCIÓN PARA MANEJAR EL CAMBIO DE TEXTO DEL NOMBRE ---
+  const handleFirstNameChange = (text) => {
+    const filteredText = text.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]/g, ''); // Elimina números y caracteres especiales
+    setFirstName(filteredText);
+    // Puedes mantener la validación de error en tiempo real o en onBlur
+    if (filteredText && !validateName(filteredText)) {
+      setFirstNameError(true);
+    } else {
+      setFirstNameError(false);
+    }
+  };
+
+  const handleLastNameChange = (text) => {
+    const filteredText = text.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]/g, ''); // Elimina números y caracteres especiales
+    setLastName(filteredText);
+    if (filteredText && !validateName(filteredText)) {
+      setLastNameError(true);
+    } else {
+      setLastNameError(false);
+    }
+  };
+
+  // --- COMPONENTE AUXILIAR PARA EL MENSAJE DE COINCIDENCIA DE CONTRASEÑAS ---
   const PasswordMatchInfo = ({ meets }) => (
     <View style={styles.passwordMatchContainer}>
       <FontAwesome
@@ -200,7 +230,8 @@ export default function SignUp({ navigation }) {
                   style={styles.input}
                   placeholder="Ingrese su nombre"
                   value={firstName}
-                  onChangeText={setFirstName}
+                  // onChangeText={setFirstName}
+                  onChangeText={handleFirstNameChange}
                   onBlur={handleFirstNameBlur}
                   placeholderTextColor="#888"
                 />
@@ -215,7 +246,8 @@ export default function SignUp({ navigation }) {
                   style={styles.input}
                   placeholder="Ingrese su apellido"
                   value={lastName}
-                  onChangeText={setLastName}
+                  // onChangeText={setLastName}
+                  onChangeText={handleLastNameChange}
                   onBlur={handleLastNameBlur}
                   placeholderTextColor="#888"
                 />
@@ -262,6 +294,34 @@ export default function SignUp({ navigation }) {
               {showPasswordInfo && (
                 <View style={styles.passwordCard}>
                   <Text style={styles.passwordCardTitle}>Requisitos de contraseña:</Text>
+                    <View style={styles.passwordCheckRow}>
+                    <FontAwesome
+                      name="check"
+                      size={18}
+                      color={passwordChecks.hasMinLength ? "#05f7c2" : "#ccc"}
+                      style={styles.passwordCheckIcon}
+                    />
+                    <Text style={[
+                      styles.passwordCheckText,
+                      passwordChecks.hasMinLength && styles.passwordCheckTextValid
+                    ]}>
+                      Mínimo 6 caracteres
+                    </Text>
+                  </View>
+                  <View style={styles.passwordCheckRow}>
+                    <FontAwesome
+                      name="check"
+                      size={18}
+                      color={passwordChecks.hasUppercase ? "#05f7c2" : "#ccc"}
+                      style={styles.passwordCheckIcon}
+                    />
+                    <Text style={[
+                      styles.passwordCheckText,
+                      passwordChecks.hasCase && styles.passwordCheckTextValid
+                    ]}>
+                      Al menos una letra minúscula
+                    </Text>
+                  </View>                 
                   <View style={styles.passwordCheckRow}>
                     <FontAwesome
                       name="check"
@@ -290,20 +350,7 @@ export default function SignUp({ navigation }) {
                       Al menos un número
                     </Text>
                   </View>
-                  <View style={styles.passwordCheckRow}>
-                    <FontAwesome
-                      name="check"
-                      size={18}
-                      color={passwordChecks.hasMinLength ? "#05f7c2" : "#ccc"}
-                      style={styles.passwordCheckIcon}
-                    />
-                    <Text style={[
-                      styles.passwordCheckText,
-                      passwordChecks.hasMinLength && styles.passwordCheckTextValid
-                    ]}>
-                      Mínimo 6 caracteres
-                    </Text>
-                  </View>
+
                 </View>
               )}
 
@@ -315,13 +362,22 @@ export default function SignUp({ navigation }) {
                   value={confirmPassword}
                   onChangeText={setConfirmPassword}
                   secureTextEntry={!showConfirmPassword}
-                  onFocus={() => setShowPasswordInfo(false)}
+                  //onFocus={() => setShowPasswordInfo(false)}
                   placeholderTextColor="#888"
+                  onFocus={() => setShowPasswordMatchInfo(true)} // Mostrar al enfocar
+                  onBlur={() => setShowPasswordMatchInfo(false)} // Ocultar al perder el foco
+                  //placeholderTextColor="#888"
                 />
                 <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)} style={styles.eyeButton}>
                   <FontAwesome name={showConfirmPassword ? "eye-slash" : "eye"} size={18} color="#555" />
                 </TouchableOpacity>
               </View>
+    
+                {/* --- NUEVO: Aviso de Contraseñas Coincidentes --- */}
+                {showPasswordMatchInfo && (confirmPassword.length > 0) && ( // Solo mostrar si hay texto en confirmar contraseña
+                  <PasswordMatchInfo meets={passwordsMatch} /> )}
+                
+                {confirmPassword.length === 0 && <View style={{marginBottom: 10}}/>}
 
               <TouchableOpacity style={styles.button} onPress={handleSignUp}>
                 <Text style={styles.buttonText}>REGISTRARSE</Text>
@@ -484,5 +540,21 @@ const styles = StyleSheet.create({
   passwordCheckTextValid: {
     color: "#05f7c2",
     fontWeight: "bold",
+  },
+
+  // --- NUEVOS ESTILOS PARA LA COINCIDENCIA DE CONTRASEÑAS ---
+  passwordMatchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12, // Espacio después del mensaje
+    marginTop: -5, // Para que esté más cerca del input
+    paddingHorizontal: 10, // Alinear con el input
+  },
+  passwordMatchIcon: {
+    marginRight: 8,
+  },
+  passwordMatchText: {
+    fontSize: 14,
+    fontWeight: 'bold',
   },
 });

@@ -48,7 +48,7 @@ export default function Login({ navigation }) {
 
   const handleLogin = async () => {
     if (!email || !password) {
-      showAlert("error", "Por favor, ingrese ambos campos.");
+      showAlert("error", "Por favor, complete ambos campos.");
       return;
     }
     try {
@@ -288,9 +288,9 @@ const styles = StyleSheet.create({
     marginTop: 15,
     marginBottom: 25,
     color: "#2196F3",
-    textAlign: "center",
+    textAlign: "right",
     fontWeight: "bold",
     //textDecorationLine: "underline",
-    fontSize: 16,
+    fontSize: 14,
   },
 });
