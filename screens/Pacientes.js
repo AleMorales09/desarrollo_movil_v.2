@@ -136,13 +136,15 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 15,
+    paddingVertical: 30,
     backgroundColor: 'transparent', // Ya está cubierto por el LinearGradient principal
   },
   welcomeText: {
     fontSize: 20,
     fontWeight: 'bold',
     color: '#fff',
+    marginTop: 15,
+    marginBottom: -15,
   },
   notificationButton: {
     padding: 5,

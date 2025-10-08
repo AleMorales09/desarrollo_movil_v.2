@@ -10,6 +10,8 @@ import NuevoPaciente from '../screens/NuevoPaciente';
 // Importa el nuevo componente que contiene el menú inferior
 import AppTabs from './AppTabs';
 import ForgotPassword from '../screens/ForgotPassword';
+import Pacientes from '../screens/Pacientes';
+import Turnos from '../screens/Turnos';
 
 const Stack = createStackNavigator();
 
@@ -41,6 +43,8 @@ function Navigation() {
           <>
             <Stack.Screen name="App" component={AppTabs} />
             <Stack.Screen name="NuevoPaciente" component={NuevoPaciente} />
+            <Stack.Screen name="Pacientes" component={Pacientes} />
+            <Stack.Screen name="Turnos" component={Turnos} />
           </>
         ) : (
           // === ESTADO NO AUTENTICADO: MUESTRA EL STACK DE AUTENTICACIÓN ===

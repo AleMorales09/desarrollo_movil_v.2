@@ -9,6 +9,7 @@ import Home from '../screens/Home';
 import Pacientes from '../screens/Pacientes';
 import NuevoPaciente from '../screens/NuevoPaciente';
 import Perfil from '../screens/Perfil';
+import Turnos from '../screens/Turnos';
 
 
 const Tab = createBottomTabNavigator();
@@ -31,6 +32,9 @@ function AppTabs() {
           else if (route.name === 'Perfil') {
             iconName = focused ? 'person-circle' : 'person-circle-outline';
           }
+          else if (route.name === 'Turnos') {
+            iconName = focused ? 'calendar' : 'calendar-outline';
+          }
 
           // Puedes retornar cualquier componente
           return <Ionicons name={iconName} size={size} color={color} />;
@@ -45,6 +49,7 @@ function AppTabs() {
       {/* <Stack.Screen name="NuevoPaciente" component={NuevoPaciente} /> */}
       {/* <Tab.Screen name="Perfil" component={Perfil} /> */}
       <Tab.Screen name="Perfil" component={Perfil} />
+      <Tab.Screen name="Turnos" component={Turnos} />
     </Tab.Navigator>
   );
 }

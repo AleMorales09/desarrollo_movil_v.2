@@ -39,24 +39,8 @@ const turnosData = [
 ];
 
 // Componente individual para cada tarjeta de turno
-// const TurnoCard = ({ hora, paciente, tratamiento }) => (
-//   <TouchableOpacity style={styles.turnoCard} onPress={() => navigation.navigate("Pacientes")}>
-//     <Text style={styles.turnoHora}>{hora}</Text>
-//     <Text style={styles.turnoPaciente}>Paciente: {paciente}</Text>
-//     <Text style={styles.turnoTratamiento}>{tratamiento}</Text>
-//     {/* <TouchableOpacity onPress={() => navigation.navigate("Pacientes")}>
-//       <Text style={styles.signUpText}>
-//         ¿No tenés cuenta?{" "}
-//         <Text style={styles.subtitle}>Regístrate</Text>
-//       </Text>
-//     </TouchableOpacity> */}
-//   </TouchableOpacity>
-// );
-
-export default function Home({navigation}) {
-  // const userName = "Maria Eugenia"; // Nombre del usuario logeado
-  const TurnoCard = ({ hora, paciente, tratamiento, onPress }) => (
-  <TouchableOpacity style={styles.turnoCard} onPress={() => navigation.navigate("Pacientes")}>
+const TurnoCard = ({ hora, paciente, tratamiento }) => (
+  <View style={styles.turnoCard} >
     <Text style={styles.turnoHora}>{hora}</Text>
     <Text style={styles.turnoPaciente}>Paciente: {paciente}</Text>
     <Text style={styles.turnoTratamiento}>{tratamiento}</Text>
@@ -66,13 +50,11 @@ export default function Home({navigation}) {
         <Text style={styles.subtitle}>Regístrate</Text>
       </Text>
     </TouchableOpacity> */}
-  </TouchableOpacity>
-  );
-  const handleCardPress = () => {
-    // Aquí defines a qué pantalla quieres ir
-    // Por ejemplo, a una pantalla de detalles del paciente/turno
-    navigation.navigate("DetalleTurno"); 
-  };
+  </View>
+);
+
+export default function Turnos() {
+  // const userName = "Maria Eugenia"; // Nombre del usuario logeado
 
   return (
     // <LinearGradient colors={['#109bebff', '#1022ebff']} style={styles.gradientBackground}>
@@ -97,7 +79,7 @@ export default function Home({navigation}) {
         </View>
 
         {/* Lista de Turnos */}
-        <LinearGradient colors={['#2233e6ff', '#22e9beff']} style={styles.gradientTurnosList}>
+        <LinearGradient colors={['#ffffffff', '#22e9beff']} style={styles.gradientTurnosList}>
           <FlatList
             data={turnosData}
             renderItem={({ item }) => <TurnoCard {...item} />}
