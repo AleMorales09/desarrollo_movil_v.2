@@ -6,6 +6,8 @@ import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { LinearGradient } from "expo-linear-gradient";
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import Alert from '../components/Alert';
+import { Database } from 'firebase/database';
+import { collection, addDoc } from 'firebase/firestore';
 
 export default function SignUp({ navigation }) {
   const [firstName, setFirstName] = useState('');
@@ -15,6 +17,7 @@ export default function SignUp({ navigation }) {
   const [telefono, setTelefono] = useState('');
   const [dniError, setDniError] = useState(false); // ⬅️ NUEVO: Estado de error para DNI
   const [telefonoError, setTelefonoError] = useState(false); // ⬅️ NUEVO: Estado de error para Teléfono
+  const [direccion, setDireccion] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -77,6 +80,16 @@ export default function SignUp({ navigation }) {
     return emailRegex.test(text);
   };
 
+  const handleAddressChange = (text) => {
+    const addressRegex = /[^a-zA-ZáéíóúÁÉÍÓÚñÑ0-9\s.,\/-]/g;
+
+    // Reemplaza todo lo que NO coincida con el patrón (es decir, caracteres especiales) por una cadena vacía.
+    const filteredText = text.replace(addressRegex, '');
+
+    setDireccion(filteredText); 
+  };
+
+
   // Validar nombre cuando pierde el foco
   const handleFirstNameBlur = () => {
     if (firstName && !validateName(firstName)) {
@@ -105,6 +118,7 @@ export default function SignUp({ navigation }) {
     }
   };
 
+
   // Validaciones en tiempo real para la contraseña
   // const passwordChecks = useMemo(() => ({
   //   hasCase: /[a-z]/.test(password),
@@ -119,7 +133,7 @@ export default function SignUp({ navigation }) {
   }, [password, confirmPassword]);
 
   const handleSignUp = async () => {
-    if (!firstName || !lastName || !email || !password || !confirmPassword) {
+    if (!firstName || !lastName || !email || !telefono || !direccion) {
       showAlert("error", "Error", "Todos los campos son obligatorios.");
       return;
     }
@@ -205,16 +219,6 @@ export default function SignUp({ navigation }) {
     }
   };
 
-  const handleDni = (text) => {
-    const filteredText = text.replace(/\d/g, '');
-    setDni(filteredText);
-    if (filteredText && !validateDni(filteredText)) {
-      setDniError(true);
-    } else {
-      setDniError(false);
-    }
-  };
-
   // --- COMPONENTE AUXILIAR PARA EL MENSAJE DE COINCIDENCIA DE CONTRASEÑAS ---
   const PasswordMatchInfo = ({ meets }) => (
     <View style={styles.passwordMatchContainer}>
@@ -236,7 +240,7 @@ export default function SignUp({ navigation }) {
       <KeyboardAwareScrollView
         contentContainerStyle={{ flexGrow: 1 }}
         enableOnAndroid={true}
-        extraScrollHeight={40}
+        extraScrollHeight={100}
         enableAutomaticScroll={true}
         keyboardShouldPersistTaps="handled"
       >
@@ -405,14 +409,14 @@ export default function SignUp({ navigation }) {
               <View style={styles.inputGroup}>
                 <TextInput
                   style={styles.input}
-                  placeholder="Confirme la dirección"
-                  value={confirmPassword}
-                  onChangeText={setConfirmPassword}
+                  placeholder="Ingrese la dirección"
+                  value={direccion}
+                  onChangeText={handleAddressChange}
                   // secureTextEntry={!showConfirmPassword}
                   //onFocus={() => setShowPasswordInfo(false)}
                   placeholderTextColor="#888"
-                  onFocus={() => setShowPasswordMatchInfo(true)} // Mostrar al enfocar
-                  onBlur={() => setShowPasswordMatchInfo(false)} // Ocultar al perder el foco
+                  // onFocus={() => setShowPasswordMatchInfo(true)} // Mostrar al enfocar
+                  // onBlur={() => setShowPasswordMatchInfo(false)} // Ocultar al perder el foco
                   //placeholderTextColor="#888"
                 />
                 {/* <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)} style={styles.eyeButton}>
@@ -421,10 +425,10 @@ export default function SignUp({ navigation }) {
               </View>
     
                 {/* --- NUEVO: Aviso de Contraseñas Coincidentes --- */}
-                {showPasswordMatchInfo && (confirmPassword.length > 0) && ( // Solo mostrar si hay texto en confirmar contraseña
+                {/* {showPasswordMatchInfo && (confirmPassword.length > 0) && ( // Solo mostrar si hay texto en confirmar contraseña
                   <PasswordMatchInfo meets={passwordsMatch} /> )}
                 
-                {confirmPassword.length === 0 && <View style={{marginBottom: 10}}/>}
+                {confirmPassword.length === 0 && <View style={{marginBottom: 10}}/>} */}
 
               <TouchableOpacity style={styles.button} onPress={handleSignUp}>
                 <Text style={styles.buttonText}>REGISTRARSE</Text>
