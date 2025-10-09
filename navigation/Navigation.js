@@ -42,7 +42,8 @@ function Navigation() {
           // Cualquier navegación dentro de AppTabs tendrá el menú inferior.
           <>
             <Stack.Screen name="App" component={AppTabs} />
-            <Stack.Screen name="NuevoPaciente" component={NuevoPaciente} />
+            <Stack.Screen name="NuevoPaciente" component={NuevoPaciente} 
+            options={{presentation: 'modal'}}/>
             <Stack.Screen name="Pacientes" component={Pacientes} />
             <Stack.Screen name="Turnos" component={Turnos} />
           </>
