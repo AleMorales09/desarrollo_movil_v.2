@@ -1,196 +1,173 @@
 import React from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, SafeAreaView, Platform, StatusBar } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet,FlatList, StatusBar } from 'react-native';
+import { signOut } from 'firebase/auth';
+import { auth } from '../src/config/firebaseConfig';
+import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons'; // Para el icono de campana
-import Pacientes from './Pacientes';
+import Icon from 'react-native-vector-icons/FontAwesome';
 
-// Datos de ejemplo para los turnos
+
 const turnosData = [
-  {
-    id: '1',
-    hora: '17:30 hs',
-    paciente: 'Ricardo Perez',
-    tratamiento: 'Endodoncia',
-  },
-  {
-    id: '2',
-    hora: '18:00 hs',
-    paciente: 'Sofia Martinez',
-    tratamiento: 'Limpieza',
-  },
-  {
-    id: '3',
-    hora: '18:30 hs',
-    paciente: 'Elena Diaz',
-    tratamiento: 'Control Ortodoncia',
-  },
-  {
-    id: '4',
-    hora: '19:00 hs',
-    paciente: 'Javier Gerardo Milei',
-    tratamiento: 'Fotocurado',
-  },
-  {
-    id: '5',
-    hora: '19:30 hs',
-    paciente: 'Lautaro Puca',
-    tratamiento: 'Fotocurado',
-  },
+  { iconName: "users", iconSize: 28, iconColor: "#109beb", id: "1", hora: "PACIENTES", paciente: "Gestión de pacientes", tratamiento: "" },
+  { iconName: "calendar", iconSize: 28, iconColor: "#109beb", id: "2", hora: "TURNOS", paciente: "Gestión de turnos", tratamiento: "" },
+  { iconName: "user-md", iconSize: 28, iconColor: "#109beb", id: "3", hora: "PERSONAL", paciente: "Gestión del personal", tratamiento: "" },
+  { iconName: "heart", iconSize: 28, iconColor: "#109beb", id: "4", hora: "HISTORIAS CLINICAS", paciente: "Gestión de historias clinicas", tratamiento: "" },
 ];
-
-// Componente individual para cada tarjeta de turno
-// const TurnoCard = ({ hora, paciente, tratamiento }) => (
-//   <TouchableOpacity style={styles.turnoCard} onPress={() => navigation.navigate("Pacientes")}>
-//     <Text style={styles.turnoHora}>{hora}</Text>
-//     <Text style={styles.turnoPaciente}>Paciente: {paciente}</Text>
-//     <Text style={styles.turnoTratamiento}>{tratamiento}</Text>
-//     {/* <TouchableOpacity onPress={() => navigation.navigate("Pacientes")}>
-//       <Text style={styles.signUpText}>
-//         ¿No tenés cuenta?{" "}
-//         <Text style={styles.subtitle}>Regístrate</Text>
-//       </Text>
-//     </TouchableOpacity> */}
-//   </TouchableOpacity>
-// );
-
-export default function Home({navigation}) {
-  // const userName = "Maria Eugenia"; // Nombre del usuario logeado
-  const TurnoCard = ({ hora, paciente, tratamiento, onPress }) => (
-  <TouchableOpacity style={styles.turnoCard} onPress={() => navigation.navigate("Pacientes")}>
-    <Text style={styles.turnoHora}>{hora}</Text>
-    <Text style={styles.turnoPaciente}>Paciente: {paciente}</Text>
+const TurnoCard = ({ hora, paciente, tratamiento, iconName, iconColor, iconSize }) => (
+  <View style={styles.turnoCard}>
+    <View style={styles.cardHeader}>
+    <Icon name={iconName} size={iconSize} color={iconColor} />
+    <Text style={styles. turnoHora}>{hora}</Text>
+    </View>
+    <Text style={styles.turnoPaciente}>{paciente}</Text>
     <Text style={styles.turnoTratamiento}>{tratamiento}</Text>
-    {/* <TouchableOpacity onPress={() => navigation.navigate("Pacientes")}>
-      <Text style={styles.signUpText}>
-        ¿No tenés cuenta?{" "}
-        <Text style={styles.subtitle}>Regístrate</Text>
-      </Text>
-    </TouchableOpacity> */}
-  </TouchableOpacity>
-  );
-  const handleCardPress = () => {
-    // Aquí defines a qué pantalla quieres ir
-    // Por ejemplo, a una pantalla de detalles del paciente/turno
-    navigation.navigate("DetalleTurno"); 
-  };
+    
+  </View>
+);
+
+export default function Home({ navigation }) {
+  // const handleLogOut = async () => {
+  //   try {
+  //     await signOut(auth);
+  //     Alert.alert("Sesión cerrada", "Has cerrado sesión correctamente.");
+  //     navigation.replace('Login');
+  //   } catch (error) {
+  //     Alert.alert("Error", "Hubo un problema al cerrar sesión.");
+  //   }
+  // };
 
   return (
-    // <LinearGradient colors={['#109bebff', '#1022ebff']} style={styles.gradientBackground}>
-    <View style={styles.contenedorHeader}>
-      {/* SafeAreaView para iOS y StatusBar para Android */}
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="#7ec9b8ff" />
 
-      <StatusBar barStyle="light-content" backgroundColor="#109bebff" />
-
-      {/* Header Superior */}
-      <View style={styles.header}>
-        {/* <Text style={styles.welcomeText}>¡Bienvenida, {userName}!</Text> */}
-        <Text style={styles.welcomeText}>¡Bienvenido/a!</Text>
-        <TouchableOpacity style={styles.notificationButton}>
-          {/* <Ionicons name="notifications-outline" size={24} color="#fff" /> */}
-        </TouchableOpacity>
-      </View>
-
-      {/* Contenedor de Turnos */}
-      <View style={styles.contentContainer}>
-        <View style={styles.turnosHeader}>
-          <Text style={styles.turnosHeaderText}>Turnos para hoy</Text>
+      {/* HEADER CON DEGRADADO */}
+      <LinearGradient
+        colors={['#cef4e8', '#6c988aff']}
+        style={styles.header}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      >
+        <View style={styles.headerContent}>
+          <Text style={styles.welcomeText}>¡Bienvenido/a!</Text>
+          <TouchableOpacity style={styles.notificationButton}>
+            <Ionicons name="notifications-outline" size={28} color="#000000" />
+          </TouchableOpacity>
         </View>
 
-        {/* Lista de Turnos */}
-        <LinearGradient colors={['#2233e6ff', '#22e9beff']} style={styles.gradientTurnosList}>
-          <FlatList
-            data={turnosData}
-            renderItem={({ item }) => <TurnoCard {...item} />}
-            keyExtractor={item => item.id}
-            contentContainerStyle={styles.turnosList}
-            showsVerticalScrollIndicator={false} // Oculta la barra de scroll
-            onPress={() => navigation.navigate("Pacientes.js")}
-          />
-        </LinearGradient>
-      </View>
+        <Text style={styles.headerSubtitle}>INICIO</Text>
+      </LinearGradient>
 
+      {/* LISTA DE TURNOS */}
+      <FlatList
+        data={turnosData}
+        renderItem={({ item }) => <TurnoCard {...item} />}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={styles.turnosList}
+        showsVerticalScrollIndicator={false}
+      />
+
+      {/* BOTÓN FLOTANTE */}
+      {/* <TouchableOpacity
+        style={styles.floatingButton}
+        onPress={() => navigation.navigate('NuevoTurno')}
+      >
+        <Ionicons name="add" size={36} color="#fff" />
+      </TouchableOpacity> */}
     </View>
-    // </LinearGradient>
   );
 }
 
+
 const styles = StyleSheet.create({
-  contenedorHeader: {
-    flex: 1,
-    backgroundColor: '#109bebff',
-  },
-  safeArea: {
-    flex: 1,
-    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0, // Ajuste para Android StatusBar
-  },
+  container: { flex: 1, backgroundColor: "#eafbf6ff" },
+
+  // Header
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    paddingTop: 50,
     paddingHorizontal: 20,
-    paddingVertical: 30,
-    backgroundColor: 'transparent', // Ya está cubierto por el LinearGradient principal
+    paddingBottom: 20,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+    backgroundColor: '#a8edea',
+    borderTopWidth: 5,
+    borderTopColor: '#68b4a7ff', //  borde superior
+    borderEndColor: '#68b4a7ff', //  borde derecho
+    borderStartColor: '#68b4a7ff', //  borde izquierdo
+    borderBottomColor: '#68b4a7ff', //  borde inferior
+    borderWidth: 4,
+
+  },
+  headerContent: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   welcomeText: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginTop: 15,
-    marginBottom: -15,
+    fontSize: 22,
+    fontWeight: "bold",
+    color: "#000000ff",
   },
   notificationButton: {
-    padding: 5,
+    backgroundColor: "#ffffff33",
+    padding: 8,
+    borderRadius: 10,
   },
-  contentContainer: {
-    flex: 1,
-    backgroundColor: '#f0f0f0', // Fondo gris claro para la sección de turnos
-    overflow: 'hidden', // Asegura que el contenido interno se recorte a los bordes redondeados
-    marginTop: 1, // Un pequeño espacio entre el header y el contenedor de turnos
-  },
-  turnosHeader: {
-    paddingVertical: 20,
-    alignItems: 'center',
-    marginBottom: 1,
-    backgroundColor: '#2233e6ff',
-  },
-  gradientTurnosList: {
-    paddingVertical: 2,
-    alignItems: 'center',
-    flex: 1,
-  },
-  turnosHeaderText: {
+  headerSubtitle: {
+    marginTop: 15,
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#fff',
+    fontWeight: "bold",
+    color: "#000000ff",
   },
-  turnosList: {
-    paddingHorizontal: '10%',
-    paddingBottom: 20, // Espacio al final de la lista
-  },
+
+  // Turnos
+  turnosList: { padding: 20 },
   turnoCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 25,
+    backgroundColor: "#fff",
+    borderRadius: 15,
+    padding: 20,
     marginBottom: 15,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 20 },
-    shadowOpacity: 0.99,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 5 },
     shadowRadius: 10,
-    elevation: 10,
+    elevation: 5,
+  },
+  cardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 8,
   },
   turnoHora: {
     fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 5,
-    color: '#333',
+    fontWeight: "bold",
+    marginLeft: 8,
+    color: "#109beb",
   },
   turnoPaciente: {
-    fontSize: 15,
-    color: '#555',
-    marginBottom: 3,
+    fontSize: 16,
+    color: "#555",
+    marginBottom: 4,
   },
   turnoTratamiento: {
     fontSize: 14,
-    color: '#777',
+    color: "#777",
+  },
+
+  // Botón flotante
+  floatingButton: {
+    position: "absolute",
+    bottom: 30,
+    right: 30,
+    backgroundColor: "#109beb",
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.3,
+    shadowOffset: { width: 0, height: 5 },
+    shadowRadius: 10,
+    elevation: 10,
   },
 });

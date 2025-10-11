@@ -303,6 +303,7 @@ export default function SignUp({ navigation }) {
                   onChangeText={handleDniChange}
                   // onBlur={handleFirstNameBlur}
                   placeholderTextColor="#888"
+                  keyboardType="numeric"
                 />
               </View>
 
@@ -334,6 +335,7 @@ export default function SignUp({ navigation }) {
                   // onFocus={() => setShowPasswordInfo(true)}
                   // onBlur={() => setShowPasswordInfo(false)}
                   placeholderTextColor="#888"
+                  keyboardType="numeric"
                 />
                 {/* <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeButton}>
                   <FontAwesome name={showPassword ? "eye-slash" : "eye"} size={18} color="#555" />
@@ -431,7 +433,7 @@ export default function SignUp({ navigation }) {
                 {confirmPassword.length === 0 && <View style={{marginBottom: 10}}/>} */}
 
               <TouchableOpacity style={styles.button} onPress={handleSignUp}>
-                <Text style={styles.buttonText}>REGISTRARSE</Text>
+                <Text style={styles.buttonText}>GUARDAR</Text>
               </TouchableOpacity>
 
               {/* <TouchableOpacity onPress={() => navigation.navigate('Login')}>
