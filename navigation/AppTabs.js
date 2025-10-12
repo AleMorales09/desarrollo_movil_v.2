@@ -26,9 +26,9 @@ function AppTabs() {
             iconName = focused ? 'home' : 'home-outline';
           } 
           // Agrega más rutas y sus iconos aquí si las tienes
-          else if (route.name === 'Pacientes') {
-            iconName = focused ? 'people' : 'people-outline';
-          }
+          // else if (route.name === 'Pacientes') {
+          //   iconName = focused ? 'people' : 'people-outline';
+          // }
           else if (route.name === 'Perfil') {
             iconName = focused ? 'person-circle' : 'person-circle-outline';
           }
@@ -45,7 +45,7 @@ function AppTabs() {
       })}
     >
       <Tab.Screen name="Home" component={Home} />
-      <Tab.Screen name="Pacientes" component={Pacientes} />
+      {/* <Tab.Screen name="Pacientes" component={Pacientes} /> */}
       {/* <Stack.Screen name="NuevoPaciente" component={NuevoPaciente} /> */}
       {/* <Tab.Screen name="Perfil" component={Perfil} /> */}
       <Tab.Screen name="Perfil" component={Perfil} />

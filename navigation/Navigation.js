@@ -7,6 +7,7 @@ import { auth } from '../src/config/firebaseConfig';  
 import Login from '../screens/Login';
 import SignUp from '../screens/SignUp';
 import NuevoPaciente from '../screens/NuevoPaciente';
+import Pacientes from '../screens/Pacientes';
 // Importa el nuevo componente que contiene el menú inferior
 import AppTabs from './AppTabs';
 import ForgotPassword from '../screens/ForgotPassword';
