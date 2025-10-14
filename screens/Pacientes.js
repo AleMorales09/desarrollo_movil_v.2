@@ -242,7 +242,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     right: 20, // Distancia desde la derecha
-    bottom: 20, // Distancia desde abajo
+    bottom: 40, // Distancia desde abajo
     shadowColor: '#000', // Sombra para que "flote"
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,

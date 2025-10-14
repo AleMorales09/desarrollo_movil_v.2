@@ -4,7 +4,7 @@ import { signOut } from 'firebase/auth';
 import { auth } from '../src/config/firebaseConfig';
 import { Ionicons,FontAwesome5,MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { FlatList } from 'react-native-web';
+import { FlatList } from 'react-native';
 
 
 // const turnosData = [
@@ -64,7 +64,7 @@ export default function Home({ navigation }) {
   return (
     <LinearGradient colors={['#ffffff', '#67c4aaff']} style={styles.gradient}>
   
-      <StatusBar barStyle="dark-content" /> {/* Barra de estado clara */}
+      <StatusBar barStyle="dark-content" />
 
       {/*  Encabezado superior */}
       <LinearGradient
@@ -110,14 +110,14 @@ export default function Home({ navigation }) {
       <View style={styles.cardsGrid}>
 
         {/* Tarjeta: Pacientes */}
-        {/* <TouchableOpacity onPress={() => navigation.navigate('Pacientes')}> */}
-          <LinearGradient colors={['#e6746aff', '#7e716fff']} style={styles.card}>
+        <TouchableOpacity style={styles.card} onPress={() => navigation.navigate('Pacientes')}>
+          {/* <LinearGradient colors={['#e6746aff', '#7e716fff']} > */}
             <FontAwesome5 name="user" size={28} color="#000000ff" />
             <Text style={styles.cardTitle}>Pacientes</Text>
             <Text style={styles.cardValue}>1,857 atendidos</Text>
             <Text style={styles.cardSubtitle}>Última consulta registrada hace 15 minutos</Text>
-          </LinearGradient>
-        {/* </TouchableOpacity> */}
+          {/* </LinearGradient> */}
+        </TouchableOpacity>
 
         {/* Tarjeta: Personal */}
         <LinearGradient colors={['#d081c0ff', '#6c396eff']} style={styles.card}>
@@ -274,6 +274,7 @@ const styles = StyleSheet.create({
 
   // Estilo general de cada tarjeta
   card: {
+    backgroundColor: 'lightgray',
     width: '48%', // Dos tarjetas por fila
     borderRadius: 16,
     padding: 16,

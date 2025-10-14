@@ -2,12 +2,12 @@
 import React, { useState, useEffect } from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
 import { NavigationContainer } from '@react-navigation/native';
-import { onAuthStateChanged } from 'firebase/auth';  
-import { auth } from '../src/config/firebaseConfig';  
+import { onAuthStateChanged } from 'firebase/auth';
+import { auth } from '../src/config/firebaseConfig';
 import Login from '../screens/Login';
 import SignUp from '../screens/SignUp';
 import NuevoPaciente from '../screens/NuevoPaciente';
-import Pacientes from '../screens/Pacientes';
+// import NuevoPaciente2 from '../screens/NuevoPaciente copy'
 // Importa el nuevo componente que contiene el menú inferior
 import AppTabs from './AppTabs';
 import ForgotPassword from '../screens/ForgotPassword';
@@ -45,6 +45,8 @@ function Navigation() {
             <Stack.Screen name="App" component={AppTabs} />
             <Stack.Screen name="NuevoPaciente" component={NuevoPaciente} 
             options={{presentation: 'modal'}}/>
+            {/* <Stack.Screen name="NuevoPaciente copy" component={NuevoPaciente2} 
+            options={{presentation: 'modal'}}/> */}
             <Stack.Screen name="Pacientes" component={Pacientes} />
             <Stack.Screen name="Turnos" component={Turnos} />
           </>

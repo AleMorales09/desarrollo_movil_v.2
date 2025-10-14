@@ -1,15 +1,15 @@
 import React, { useState, useMemo } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, StatusBar, Image } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
-import { auth } from '../src/config/firebaseConfig';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
+// import { auth } from '../src/config/firebaseConfig';
+// import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { LinearGradient } from "expo-linear-gradient";
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import Alert from '../components/Alert';
-import { Database } from 'firebase/database';
+import { db } from '../src/config/firebaseConfig';
 import { collection, addDoc } from 'firebase/firestore';
 
-export default function SignUp({ navigation }) {
+export default function NuevoPaciente({ navigation }) {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
@@ -33,15 +33,15 @@ export default function SignUp({ navigation }) {
     type: "info",
     title: "",
     message: "",
-  });
-  
+    }
+  );
 
   const showAlert = (type, title, message) => {
     setAlertConfig({ visible: true, type, title, message });
     if (type === "success") {
       setTimeout(() => {
         setAlertConfig((prev) => ({ ...prev, visible: false }));
-        navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+        navigation.reset({ index: 0, routes: [{ name: 'Pacientes' }] });
       }, 3000);
     }
   };
@@ -55,6 +55,10 @@ export default function SignUp({ navigation }) {
     const nameRegex = /^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]*$/;
     return nameRegex.test(text);
   };
+
+  // const onSend = async () => {
+  //   await addDoc(collection(database, "pacientes"), newItem)
+  // }
 
   const handleDniChange = (text) => {
     // 🎯 MODIFICACIÓN CLAVE: Filtra cualquier cosa que NO sea un dígito (\D) o usa [^0-9]
@@ -132,8 +136,8 @@ export default function SignUp({ navigation }) {
     return password.length > 0 && confirmPassword.length > 0 && password === confirmPassword;
   }, [password, confirmPassword]);
 
-  const handleSignUp = async () => {
-    if (!firstName || !lastName || !email || !telefono || !direccion) {
+  const handleNewPaciente = async () => {
+    if (!firstName || !lastName || !dni || !email || !telefono || !direccion) {
       showAlert("error", "Error", "Todos los campos son obligatorios.");
       return;
     }
@@ -150,50 +154,91 @@ export default function SignUp({ navigation }) {
       showAlert("error", "Error", "El apellido solo debe contener letras.");
       return;
     }
-
+    if (dni.length !== 8) {
+      setDniError(true);
+      showAlert("error", "DNI Inválido", "El DNI debe tener 8 dígitos.");
+      return;
+    }
     // Validar correo antes de registrar
     if (!validateEmail(email)) {
       setEmailError(true);
       showAlert("error", "Error", "El formato del correo electrónico no es válido.");
       return;
     }
-
-    if (password !== confirmPassword) {
-      showAlert("error", "Error", "Las contraseñas no coinciden.");
+    if (telefono.length < 7) {
+      setTelefonoError(true);
+      showAlert("error", "Teléfono Inválido", "El teléfono debe tener al menos 7 dígitos.");
       return;
     }
+    // if (password !== confirmPassword) {
+    //   showAlert("error", "Error", "Las contraseñas no coinciden.");
+    //   return;
+    // }
 
-    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d]{6,}$/;
-    if (!passwordRegex.test(password)) {
-      showAlert(
-        "error",
-        "Error",
-        "La contraseña debe tener al menos 6 caracteres, incluyendo una letra mayúscula, una minúscula y un número."
-      );
-      return;
-    }
+    // const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d]{6,}$/;
+    // if (!passwordRegex.test(password)) {
+    //   showAlert(
+    //     "error",
+    //     "Error",
+    //     "La contraseña debe tener al menos 6 caracteres, incluyendo una letra mayúscula, una minúscula y un número."
+    //   );
+    //   return;
+    // }
 
     try {
-      await createUserWithEmailAndPassword(auth, email, password);
-      showAlert("success", "Registro exitoso", "Usuario registrado con éxito.");
+
+      const newPatient = {
+        nombre: firstName,
+        apellido: lastName,
+        dni: dni,
+        email: email,
+        telefono: telefono,
+        direccion: direccion,
+        fechaCreacion: new Date(),
+      };
+
+      await addDoc(collection(db, "pacientes"), newPatient);
+
+      showAlert("success", "Paciente Registrado", "El paciente ha sido guardado correctamente.");
+      
+      setFirstName('');
+      setLastName('');
+      setDni('');
+      setEmail('');
+      setTelefono('');
+      setDireccion('');
+      setFirstNameError(false);
+      setLastNameError(false);
+      setDniError(false);
+      setEmailError(false);
+      setTelefonoError(false);
+
     } catch (error) {
-      let errorMessage = "Hubo un problema al registrar el usuario.";
-      switch (error.code) {
-        case 'auth/email-already-in-use':
-          errorMessage = "El correo electrónico ya está en uso.";
-          break;
-        case 'auth/invalid-email':
-          errorMessage = "El formato del correo electrónico no es válido.";
-          break;
-        case 'auth/weak-password':
-          errorMessage = "La contraseña es demasiado débil.";
-          break;
-        case 'auth/network-request-failed':
-          errorMessage = "Error de conexión, por favor intenta más tarde.";
-          break;
-      }
-      showAlert("error", "Error", errorMessage);
+      console.error("Error al guardar el paciente:", error);
+      showAlert("error", "Error al Guardar", "No se pudo guardar el paciente. Inténtalo de nuevo.");
     }
+
+    //   await createPacienteEmailDni(auth, email, dni);
+    //   showAlert("success", "Paciente Registrado", "El paciente ha sido guardado correctamente.");
+    //   showAlert("success", "Registro exitoso", "Paciente registrado con éxito.");
+    // } catch (error) {
+    //   let errorMessage = "Hubo un problema al registrar el usuario.";
+    //   switch (error.code) {
+    //     case 'auth/email-already-in-use':
+    //       errorMessage = "El correo electrónico ya está en uso.";
+    //       break;
+    //     case 'auth/invalid-email':
+    //       errorMessage = "El formato del correo electrónico no es válido.";
+    //       break;
+    //     // case 'auth/weak-password':
+    //     //   errorMessage = "La contraseña es demasiado débil.";
+    //     //   break;
+    //     case 'auth/network-request-failed':
+    //       errorMessage = "Error de conexión, por favor intenta más tarde.";
+    //       break;
+    //   }
+    //   showAlert("error", "Error", errorMessage);
+    // }
   };
 
 
@@ -240,7 +285,7 @@ export default function SignUp({ navigation }) {
       <KeyboardAwareScrollView
         contentContainerStyle={{ flexGrow: 1 }}
         enableOnAndroid={true}
-        extraScrollHeight={100}
+        extraScrollHeight={60}
         enableAutomaticScroll={true}
         keyboardShouldPersistTaps="handled"
       >
@@ -432,7 +477,7 @@ export default function SignUp({ navigation }) {
                 
                 {confirmPassword.length === 0 && <View style={{marginBottom: 10}}/>} */}
 
-              <TouchableOpacity style={styles.button} onPress={handleSignUp}>
+              <TouchableOpacity style={styles.button} onPress={handleNewPaciente}>
                 <Text style={styles.buttonText}>GUARDAR</Text>
               </TouchableOpacity>
 
@@ -446,8 +491,7 @@ export default function SignUp({ navigation }) {
           </LinearGradient>
         </View>
       </KeyboardAwareScrollView>
-
-      {/* Alerta Personalizada */}
+      
       <Alert
         visible={alertConfig.visible}
         type={alertConfig.type}
