@@ -1,8 +1,67 @@
-import React from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, SafeAreaView, Platform, StatusBar } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, StatusBar, Modal, Platform } from 'react-native'; // <-- 1. IMPORTAR Platform aquí
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons'; // Para el icono de campana
-import Pacientes from './Pacientes';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons'; 
+
+// Componente para el menú modal (opciones de navegación)
+const MenuModal = ({ visible, onClose, navigation }) => {
+  const allMenuOptions = [
+    { name: 'Inicio', screen: 'Home', isTab: true, icon: 'home-outline' },
+    { name: 'Pacientes', screen: 'Pacientes', isStack: true, icon: 'people-outline' }, 
+    { name: 'Personal', screen: 'Personal', isStack: false, icon: 'account-group' }, 
+    { name: 'Tratamientos', screen: 'Tratamientos', isStack: false, icon: 'bandage-outline' }, 
+    { name: 'Turnos', screen: 'Turnos', isTab: true, icon: 'calendar-outline' },
+    { name: 'Perfil', screen: 'Perfil', isTab: true, icon: 'person-circle-outline' },
+  ];
+
+  // FILTRADO CLAVE: Excluye la opción actual ("Turnos")
+  const menuOptions = allMenuOptions.filter(option => option.name !== 'Turnos');
+
+  const handleNavigate = (option) => {
+    onClose();
+    if (option.isTab) {
+        navigation.navigate('App', { screen: option.screen });
+    } else if (option.isStack) {
+        navigation.navigate(option.screen);
+    } else {
+        navigation.navigate('App', { screen: option.screen }); 
+    }
+  };
+
+  const getIconComponent = (option) => {
+    // Usamos MaterialCommunityIcons para 'Personal' y Ionicons para los demás
+    if (option.name === 'Personal') {
+        return <MaterialCommunityIcons name={option.icon} size={24} color="#3b82f6" />;
+    }
+    // Usamos Ionicons (Incluye Tratamientos: bandage-outline)
+    return <Ionicons name={option.icon} size={24} color="#3b82f6" />;
+  };
+
+  return (
+    <Modal
+      transparent={true}
+      visible={visible}
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <TouchableOpacity style={styles.modalOverlay} onPress={onClose} activeOpacity={1}>
+        <View style={styles.menuContainer}>
+          {menuOptions.map((option, index) => (
+            <TouchableOpacity 
+              key={index} 
+              style={styles.menuItem}
+              onPress={() => handleNavigate(option)}
+            >
+              {getIconComponent(option)}
+              <Text style={styles.menuItemText}>{option.name}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </TouchableOpacity>
+    </Modal>
+  );
+};
+
 
 // Datos de ejemplo para los turnos
 const turnosData = [
@@ -44,31 +103,26 @@ const TurnoCard = ({ hora, paciente, tratamiento }) => (
     <Text style={styles.turnoHora}>{hora}</Text>
     <Text style={styles.turnoPaciente}>Paciente: {paciente}</Text>
     <Text style={styles.turnoTratamiento}>{tratamiento}</Text>
-    {/* <TouchableOpacity onPress={() => navigation.navigate("Pacientes")}>
-      <Text style={styles.signUpText}>
-        ¿No tenés cuenta?{" "}
-        <Text style={styles.subtitle}>Regístrate</Text>
-      </Text>
-    </TouchableOpacity> */}
   </View>
 );
 
-export default function Turnos() {
-  // const userName = "Maria Eugenia"; // Nombre del usuario logeado
+export default function Turnos({ navigation }) { 
+  const [isMenuVisible, setIsMenuVisible] = useState(false); 
 
   return (
-    // <LinearGradient colors={['#109bebff', '#1022ebff']} style={styles.gradientBackground}>
     <View style={styles.contenedorHeader}>
-      {/* SafeAreaView para iOS y StatusBar para Android */}
 
       <StatusBar barStyle="light-content" backgroundColor="#109bebff" />
 
       {/* Header Superior */}
       <View style={styles.header}>
-        {/* <Text style={styles.welcomeText}>¡Bienvenida, {userName}!</Text> */}
-        <Text style={styles.welcomeText}>¡Bienvenido/a!</Text>
-        <TouchableOpacity style={styles.notificationButton}>
-          {/* <Ionicons name="notifications-outline" size={24} color="#fff" /> */}
+        <Text style={styles.welcomeText}>Turnos</Text>
+        {/* BOTÓN PARA ABRIR EL MENÚ MODAL */}
+        <TouchableOpacity 
+            style={styles.menuButton} 
+            onPress={() => setIsMenuVisible(true)}
+        >
+          <Ionicons name="menu-outline" size={30} color="#fff" />
         </TouchableOpacity>
       </View>
 
@@ -86,13 +140,17 @@ export default function Turnos() {
             keyExtractor={item => item.id}
             contentContainerStyle={styles.turnosList}
             showsVerticalScrollIndicator={false} // Oculta la barra de scroll
-            onPress={() => navigation.navigate("Pacientes.js")}
           />
         </LinearGradient>
       </View>
 
+      {/* Menú Modal */}
+      <MenuModal 
+        visible={isMenuVisible} 
+        onClose={() => setIsMenuVisible(false)} 
+        navigation={navigation}
+      />
     </View>
-    // </LinearGradient>
   );
 }
 
@@ -101,33 +159,31 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#109bebff',
   },
-  safeArea: {
-    flex: 1,
-    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0, // Ajuste para Android StatusBar
-  },
+  // ELIMINADO EL ESTILO safeArea YA QUE CAUSABA PROBLEMAS DE SCOPE/TIPOGRAFÍA
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 30,
-    backgroundColor: 'transparent', // Ya está cubierto por el LinearGradient principal
+    paddingTop: 50, // Ajustado para margen superior
+    backgroundColor: 'transparent', 
   },
   welcomeText: {
-    fontSize: 20,
+    fontSize: 24, 
     fontWeight: 'bold',
     color: '#fff',
-    marginTop: 15,
-    marginBottom: -15,
+    marginTop: 0, 
+    marginBottom: 0, 
   },
-  notificationButton: {
+  menuButton: { 
     padding: 5,
   },
   contentContainer: {
     flex: 1,
-    backgroundColor: '#f0f0f0', // Fondo gris claro para la sección de turnos
-    overflow: 'hidden', // Asegura que el contenido interno se recorte a los bordes redondeados
-    marginTop: 1, // Un pequeño espacio entre el header y el contenedor de turnos
+    backgroundColor: '#f0f0f0', 
+    overflow: 'hidden', 
+    marginTop: 1, 
   },
   turnosHeader: {
     paddingVertical: 20,
@@ -147,7 +203,7 @@ const styles = StyleSheet.create({
   },
   turnosList: {
     paddingHorizontal: '10%',
-    paddingBottom: 20, // Espacio al final de la lista
+    paddingBottom: 20, 
   },
   turnoCard: {
     backgroundColor: '#fff',
@@ -175,4 +231,36 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#777',
   },
+    // --- Estilos para el Modal de Menú (Ajustados) ---
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-start', 
+    alignItems: 'flex-end', 
+    paddingRight: 10, 
+    paddingTop: 85, 
+  },
+  menuContainer: {
+    width: 200,
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    paddingVertical: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  menuItemText: {
+    marginLeft: 10,
+    fontSize: 16,
+    color: '#333',
+  }
 });

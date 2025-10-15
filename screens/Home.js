@@ -37,11 +37,11 @@ export default function Home({ navigation }) {
   };
 
   const carrucelData = [
-    { titulo: "Mision",
-      descripcion: " Ofrece atención personalizada \npara mejorar la salud y estética bucal.",
+    { titulo: "Misión",
+      descripcion: " Ofrecer atención personalizada \npara mejorar la salud y estética bucal.",
     },
-    { titulo: "Vision",
-      descripcion: "Líderes en odontología por excelencia clínica y \ncompromiso local..", 
+    { titulo: "Visión",
+      descripcion: "Líderes en odontología por excelencia clínica y \ncompromiso local.", 
     },
   ];
 
@@ -66,7 +66,7 @@ export default function Home({ navigation }) {
   
       <StatusBar barStyle="dark-content" />
 
-      {/*  Encabezado superior */}
+      {/* Encabezado superior */}
       <LinearGradient
         colors={['#cef4e8', '#20d3c4ff']}
         style={styles.header}
@@ -75,7 +75,7 @@ export default function Home({ navigation }) {
       >
       <View style={styles.headerContent}>
         <View>
-          <Text style={styles.welcomeText}>¡Bienvenido!</Text>
+          <Text style={styles.welcomeText}>¡Bienvenido/a!</Text>
         </View>
 
         {/* Imagen del usuario o logo */}
@@ -101,47 +101,57 @@ export default function Home({ navigation }) {
         />
       </View>
 
-      {/*  Encabezado de la sección de opciones */}
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Opciones</Text>
+      {/* Encabezado de la sección de opciones */}
+      <View style={[styles.sectionHeader, styles.paddingContainer]}>
+        <Text style={styles.sectionTitle}>Secciones</Text>
       </View>
 
       {/* Cuadrícula con las tarjetas de información */}
-      <View style={styles.cardsGrid}>
+      <View style={[styles.cardsGrid, styles.paddingContainer]}>
 
         {/* Tarjeta: Pacientes */}
-        <TouchableOpacity style={styles.card} onPress={() => navigation.navigate('Pacientes')}>
-          {/* <LinearGradient colors={['#e6746aff', '#7e716fff']} > */}
-            <FontAwesome5 name="user" size={28} color="#000000ff" />
+        <TouchableOpacity style={styles.cardWrapper} onPress={() => navigation.navigate('Pacientes')}>
+          <LinearGradient 
+            colors={['#f5f7f8ff', '#f9fcfaff']}
+            style={styles.card}
+          >
+            <FontAwesome5 name="user" size={80} color="#46b0eeff" />
             <Text style={styles.cardTitle}>Pacientes</Text>
-            <Text style={styles.cardValue}>1,857 atendidos</Text>
-            <Text style={styles.cardSubtitle}>Última consulta registrada hace 15 minutos</Text>
-          {/* </LinearGradient> */}
+          </LinearGradient>
         </TouchableOpacity>
 
         {/* Tarjeta: Personal */}
-        <LinearGradient colors={['#d081c0ff', '#6c396eff']} style={styles.card}>
-          <MaterialCommunityIcons name="account-group" size={28} color="#000000ff" />
-          <Text style={styles.cardTitle}>Personal</Text>
-          <Text style={styles.cardValue}>8 profesionales activos</Text>
-          <Text style={styles.cardSubtitle}>Última incorporación: hace 2 días</Text>
-        </LinearGradient>
+        <TouchableOpacity style={styles.cardWrapper}>
+          <LinearGradient 
+          colors={['#f5f7f8ff', '#f9fcfaff']} 
+            style={styles.card}
+          >
+            <MaterialCommunityIcons name="account-group" size={80} color="#46b0eeff"/>
+            <Text style={styles.cardTitle}>Personal</Text>
+          </LinearGradient>
+        </TouchableOpacity>
 
-        {/* Tarjeta: Tratamientos */}
-        <LinearGradient colors={['#a0b9ff', '#1d2652ff']} style={styles.card}>
-          <FontAwesome5 name="procedures" size={28} color="#000000ff" />
-          <Text style={styles.cardTitleTrat}>Tratamientos</Text>
-          <Text style={styles.cardValue}>Tratamientos en curso: 3.</Text>
-          <Text style={styles.cardSubtitle}>Revicion dental completada hoy</Text>
-        </LinearGradient>
+        {/* Tarjeta: Tratamientos*/}
+        <TouchableOpacity style={styles.cardWrapper}>
+          <LinearGradient 
+            colors={['#f5f7f8ff', '#f9fcfaff']}
+            style={styles.card}
+          >
+            <FontAwesome5 name="tooth" size={80} color="#46b0eeff" />
+            <Text style={styles.cardTitle}>Tratamientos</Text>
+          </LinearGradient>
+        </TouchableOpacity>
 
-        {/* Tarjeta: Turnos */}
-        <LinearGradient colors={['#7d9e43ff', '#566721ff']} style={styles.card}>
-          <Ionicons name="calendar" size={28} color="#000000ff" />
-          <Text style={styles.cardTitle}>Turnos</Text>
-          <Text style={styles.cardValue}>Turnos programados: 12</Text>
-          <Text style={styles.cardSubtitle}>Actualizado hace 5 minutos.</Text>
-        </LinearGradient>
+        {/* Tarjeta: Turnos*/}
+        <TouchableOpacity style={styles.cardWrapper} onPress={() => navigation.navigate('Turnos')}>
+          <LinearGradient 
+            colors={['#f5f7f8ff', '#f9fcfaff']}
+            style={styles.card}
+          >
+            <Ionicons name="calendar" size={80} color="#46b0eeff" />
+            <Text style={styles.cardTitle}>Turnos</Text>
+          </LinearGradient>
+        </TouchableOpacity>
       </View>
     </LinearGradient>
   );
@@ -152,8 +162,10 @@ const styles = StyleSheet.create({
   // Degradado de fondo
   gradient: {
     flex: 1,
+  },
+  // Contenedor de padding horizontal para el contenido que no es full-width
+  paddingContainer: {
     paddingHorizontal: 20,
-    paddingTop: 60,
   },
   //Carrucel
   carrucelFondo: {
@@ -162,7 +174,7 @@ const styles = StyleSheet.create({
     borderRadius: 50,
     justifyContent: "center",
     alignItems: "center",
-    marginHorizontal: 10,
+    marginHorizontal: 55,
     shadowColor: "#000",
     shadowOpacity: 0.15,
     shadowOffset: { width: 0, height: 4 },
@@ -209,13 +221,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 10,
     elevation: 5,
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 10,
-    
- 
   },
   // Contenido dentro del encabezado
   headerContent: {
@@ -223,11 +228,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 50,
-    paddingTop: 20,
+    paddingTop: 50, 
     paddingBottom: 15,
-   
-  
-
   },
 
   // Estilo del texto de bienvenida
@@ -246,8 +248,6 @@ const styles = StyleSheet.create({
     borderWidth: 2, 
     borderRadius: 50,
     padding: 15,
-   
-    
   },
 
   // Encabezado de la sección "Opciones"
@@ -267,38 +267,51 @@ const styles = StyleSheet.create({
   // Contenedor de las tarjetas
   cardsGrid: {
     flexDirection: 'row',
-    flexWrap: 'wrap', // Permite que las tarjetas pasen a la siguiente fila
+    //rowGap: -50,
+    flexWrap: 'wrap', 
     justifyContent: 'space-between',
-    marginTop: 15,
+    marginTop: 40,
   },
 
-  // Estilo general de cada tarjeta
+  // Estilo general de cada tarjeta (para LinearGradient)
   card: {
-    backgroundColor: 'lightgray',
-    width: '48%', // Dos tarjetas por fila
-    borderRadius: 16,
-    padding: 16,
+    width: '100%',
+    //height: '65%',
+    borderRadius: 15,
+    padding: 20,
     marginBottom: 30,
-    
+    textAlign: 'center',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderColor: '#1595a6',
+    borderWidth: 5,
+  },
+  // Estilo Wrapper para el TouchableOpacity (solo necesario para la primera tarjeta)
+ // Estilo Wrapper para el TouchableOpacity 
+  cardWrapper: {
+    width: '48%', // Dos tarjetas por fila
+    marginBottom: 20, // Espacio vertical consistente entre filas
+    borderRadius: 15, 
+    overflow: 'hidden', // Necesario para que el radio se vea bien
   },
 
-  // Texto del título en cada tarjeta
+  // Texto del título en cada tarjeta (Negro)
   cardTitle: {
-    color: '#2c0909ff',
+    color:"#46b0eeff", // Color negro oscuro para mejor contraste
     fontSize: 20,
     marginTop: 10,
     fontWeight: 'bold',
   },
   cardTitleTrat: {
-    color: '#2c0909ff',
-    fontSize: 18,
+    color: '#2c0909ff', // Color negro oscuro para mejor contraste
+    fontSize: 20,
     marginTop: 10,
     fontWeight: 'bold',
   },
 
   // Valor principal en cada tarjeta
   cardValue: {
-    color: '#fff',
+    color: '#ffffffff', // Color negro oscuro para mejor contraste
     fontSize: 17,
     fontWeight: '700',
     marginTop: 4,
@@ -306,7 +319,7 @@ const styles = StyleSheet.create({
 
   // Subtítulo en cada tarjeta
   cardSubtitle: {
-    color: '#f0f0f0',
+    color: '#ffffffff', // Color negro oscuro para mejor contraste
     fontSize: 16,
     marginTop: 4,
   },

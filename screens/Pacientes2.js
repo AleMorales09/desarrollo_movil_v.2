@@ -24,7 +24,8 @@ export default function PacientesScreen({ navigation }) {
       const pacientesArray = [];
       querySnapshot.forEach((documentSnapshot) => {
         pacientesArray.push({
-          documentSnapshot.data(),
+          // CAMBIO CLAVE: Usar el operador spread (...)
+          ...documentSnapshot.data(),
           id: documentSnapshot.id,
         });
       });
@@ -46,7 +47,25 @@ export default function PacientesScreen({ navigation }) {
     Alert.alert(
       "Confirmar Eliminación",
       "¿Estás seguro de que deseas eliminar a este paciente?",
-      { cancelable: false }
+      [
+        {
+          text: "Cancelar",
+          style: "cancel",
+        },
+        { 
+          text: "Eliminar", 
+          onPress: async () => {
+            try {
+              await deleteDoc(doc(db, "pacientes", id));
+              Alert.alert("Eliminado", "Paciente eliminado correctamente.");
+            } catch (error) {
+              Alert.alert("Error", "No se pudo eliminar el paciente.");
+            }
+          },
+          style: "destructive",
+        }
+      ],
+      { cancelable: true }
     );
   };
 
@@ -54,7 +73,8 @@ export default function PacientesScreen({ navigation }) {
     <View style={styles.pacienteCard}>
       <View style={styles.infoContainer}>
         <Text style={styles.pacienteNombre}>{`${item.nombre} ${item.apellido}`}</Text>
-        <Text style={styles.pacienteInfo}>Correo: {item.correo}</Text>
+        {/* Aquí asumimos que 'correo' y 'telefono' existen en los datos, si no, usa 'email' y 'telefono' */}
+        <Text style={styles.pacienteInfo}>Correo: {item.correo || item.email}</Text>
         <Text style={styles.pacienteInfo}>Teléfono: {item.telefono}</Text>
       </View>
       <View style={styles.buttonsContainer}>
