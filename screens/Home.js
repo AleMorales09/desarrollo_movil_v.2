@@ -298,7 +298,7 @@ const styles = StyleSheet.create({
   // Texto del título en cada tarjeta (Negro)
   cardTitle: {
     color:"#46b0eeff", // Color negro oscuro para mejor contraste
-    fontSize: 20,
+    fontSize: 19,
     marginTop: 10,
     fontWeight: 'bold',
   },
