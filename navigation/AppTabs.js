@@ -1,14 +1,42 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons'; 
+import { Animated } from 'react-native'; // 🔑 Importación de Animated
+import { useSafeAreaInsets } from 'react-native-safe-area-context'; 
 import Home from '../screens/Home';
 import Perfil from '../screens/Perfil';
-import Turnos from '../screens/Turnos'; // Mantenemos el import por si se usa en otro lado, pero eliminamos la pantalla de la barra inferior.
+import Turnos from '../screens/Turnos';
 
 const Tab = createBottomTabNavigator();
 
+// --- Componente auxiliar para el ícono animado ---
+const AnimatedIcon = ({ iconName, size, color, focused }) => {
+    // 🔑 Creamos un valor animado para la escala
+    const scaleAnim = useRef(new Animated.Value(focused ? 1.2 : 1)).current;
+
+    useEffect(() => {
+        // Ejecutamos la animación de escala cuando el foco cambia
+        Animated.spring(scaleAnim, {
+            toValue: focused ? 1.2 : 1, // 1.2 para rebote, 1 para estado normal
+            friction: 5, // Determina la 'elasticidad' del rebote
+            useNativeDriver: true,
+        }).start();
+    }, [focused, scaleAnim]);
+
+    return (
+        <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+            <Ionicons name={iconName} size={size} color={color} />
+        </Animated.View>
+    );
+};
+// ----------------------------------------------------
+
+
 // Este es el menú inferior que solo aparece DESPUÉS del login
 function AppTabs() {
+  // 🔑 Hook para obtener los insets (márgenes seguros) del sistema
+  const insets = useSafeAreaInsets();
+  
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -23,16 +51,39 @@ function AppTabs() {
           }
           // Lógica para 'Turnos' eliminada de aquí.
 
-          return <Ionicons name={iconName} size={size} color={color} />;
+          // 🔑 Usamos el componente AnimatedIcon en lugar del Ionicons directo
+          return (
+            <AnimatedIcon 
+              iconName={iconName} 
+              size={size} 
+              color={color} 
+              focused={focused} 
+            />
+          );
         },
-        tabBarActiveTintColor: 'blue', 
-        tabBarInactiveTintColor: 'gray', 
+        
+        // --- PROPIEDADES DE ESTILO PARA TODAS LAS PANTALLAS ---
+        tabBarActiveTintColor: '#05f7c2', 
+        tabBarInactiveTintColor: '#888',
         headerShown: false, 
+        
+        // 🔑 PROPIEDAD CLAVE: ESTILO DEL CONTENEDOR DE LA BARRA
+        tabBarStyle: {
+          backgroundColor: '#1f1f1f',
+          borderTopWidth: 0,
+          paddingBottom: insets.bottom + 5, 
+          height: 45 + insets.bottom, 
+        },
+        
+        // 🔑 PROPIEDAD CLAVE: ESTILO DE LAS ETIQUETAS DE TEXTO
+        tabBarLabelStyle: {
+          fontSize: 12,
+          fontWeight: '600',
+        },
       })}
     >
       <Tab.Screen name="Home" component={Home} />
       <Tab.Screen name="Perfil" component={Perfil} />
-      {/* Eliminado: <Tab.Screen name="Turnos" component={Turnos} /> */}
     </Tab.Navigator>
   );
 }
