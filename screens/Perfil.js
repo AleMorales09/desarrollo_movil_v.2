@@ -7,6 +7,7 @@ import {
     TextInput, 
     Image, 
     ActivityIndicator, 
+    Modal, // <-- NUEVA IMPORTACIÓN REQUERIDA
 } from "react-native";
 import * as ImagePicker from 'expo-image-picker'; 
 import CustomAlert from '../components/Alert'; 
@@ -29,6 +30,7 @@ import {
 } from 'firebase/firestore'; 
 import { LinearGradient } from "expo-linear-gradient";
 import { FontAwesome } from "@expo/vector-icons";
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 
 // ==========================================================
 // CONFIGURACIÓN DE CLOUDINARY (¡DEBES CAMBIAR ESTOS VALORES!)
@@ -92,6 +94,8 @@ export default function Perfil({ navigation }) {
     // Estados de la UI
     const [isEditing, setIsEditing] = useState(false);
     const [isChangingPassword, setIsChangingPassword] = useState(false); 
+    
+    const [showImageSourceOptions, setShowImageSourceOptions] = useState(false); // <-- NUEVO ESTADO PARA EL MENÚ
 
     // Estados de la contraseña
     const [currentPassword, setCurrentPassword] = useState('');
@@ -240,77 +244,145 @@ export default function Perfil({ navigation }) {
         setAlertConfig({ ...alertConfig, visible: false });
     };
     
-    const handleImagePickAndUpload = async () => {
+    // ==========================================================
+    // LÓGICA DE MANEJO DE IMÁGENES REFACTORIZADA
+    // ==========================================================
+
+    // --- FUNCIÓN AUXILIAR DE SUBIDA A CLOUDINARY Y FIREBASE ---
+    const uploadImage = async (uri, base64) => {
         if (!user) {
             showAlert("error", "Error", "Usuario no autenticado.");
             return;
         }
-
-        // 1. Pedir permisos de cámara/librería (simplificado)
-        let result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
-            allowsEditing: true,
-            aspect: [1, 1],
-            quality: 0.5,
-        });
-
-        if (result.canceled) return;
-
-        // Mostrar un spinner o indicador de carga aquí si es posible
-        // setSubmittingImage(true); 
+        
+        setShowImageSourceOptions(false); // Cierra el menú de opciones
+        // Usamos CustomAlert para el mensaje de carga
+        showAlert("info", "Subiendo...", "Estamos subiendo la imagen, por favor espera.", false); 
 
         try {
-            const uri = result.assets[0].uri;
-            const fileType = uri.substring(uri.lastIndexOf('.') + 1);
+            // Construir dataUri si se usa base64 (necesario para Cloudinary)
+            const dataUri = base64 ? `data:image/jpeg;base64,${base64}` : uri;
             
-            // 2. Subir a Cloudinary (simplificado/simulado - DEBES IMPLEMENTAR ESTA LÓGICA)
-            // Lógica de Cloudinary real iría aquí. 
-            // Esto es solo un placeholder para evitar un error de sintaxis.
+            // 1. Subir a Cloudinary (fetch) 
+            const cloudinaryUrl = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`;
             
-            // Ejemplo de subida simulada:
-            console.log("Simulando subida de imagen a Cloudinary...");
+            const data = {
+                file: dataUri,
+                upload_preset: CLOUDINARY_UPLOAD_PRESET,
+                api_key: CLOUDINARY_API_KEY, 
+            };
+            
+            let newPhotoURL = uri; // Fallback al URI local para simulación o errores
+            
+            // *** IMPLEMENTACIÓN REAL DE CLOUDINARY DEBE IR AQUÍ ***
+            // Por ahora, usamos una simulación, ya que la anterior era un placeholder
+            console.log("Simulando subida de imagen a Cloudinary. Usando URI local.");
             await new Promise(resolve => setTimeout(resolve, 1500)); 
+            // newPhotoURL = (el resultado de Cloudinary.secure_url) o mantenemos 'uri' para pruebas locales.
+            // newPhotoURL se mantiene como 'uri' para permitir la visualización local si el backend no está conectado.
             
-            // Reemplazar con la URL REAL devuelta por Cloudinary
-            const newPhotoURL = uri; 
-
-            // 3. PRE-ACTUALIZACIÓN: Limpiar el displayName ANTES de actualizar la foto.
+            // 2. PRE-ACTUALIZACIÓN: Limpiar el displayName.
             const newDisplayName = cleanAndBuildDisplayName(firstName, lastName);
-        
-            // 4. Actualizar Auth y Firestore
+            
+            // 3. Actualizar Auth y Firestore
             try {
-                // Primero: Limpia el displayName (evita el error de "slashes").
                 if (user.displayName !== newDisplayName) {
-                     await updateProfile(user, { displayName: newDisplayName });
+                    await updateProfile(user, { displayName: newDisplayName });
                 }
-
-                // Segundo: Actualiza la photoURL.
                 await updateProfile(user, { photoURL: newPhotoURL });
                 
-                // Tercero: Actualizar Firestore (solo si se necesita guardar la URL en Firestore además de Auth)
                 const userDocRef = doc(db, "users", user.uid);
                 await updateDoc(userDocRef, { photoURL: newPhotoURL });
 
-
-                // 5. Actualizar estado local y originalData
+                // 4. Actualizar estado local y originalData
                 setProfileImage(newPhotoURL);
                 setOriginalData(prev => ({ ...prev, photoURL: newPhotoURL })); 
+                
+                setAlertConfig(prev => ({ ...prev, visible: false })); // Cerrar la alerta de subida
                 showAlert("success", "Éxito", "Foto de perfil actualizada correctamente.");
 
             } catch (firebaseUpdateError) {
                 console.error("Firebase update error (Photo):", firebaseUpdateError);
                 let errorMessage = "La foto se subió, pero falló la actualización en Firebase: " + firebaseUpdateError.message;
+                setAlertConfig(prev => ({ ...prev, visible: false })); // Cerrar la alerta de subida
                 showAlert("error", "Error", errorMessage);
             }
         
         } catch (error) {
             console.error("Image Picker/Upload error:", error);
-            showAlert("error", "Error", `Ocurrió un error inesperado al intentar seleccionar la imagen: ${error.message}`);
+            setAlertConfig(prev => ({ ...prev, visible: false })); // Cerrar la alerta de subida
+            showAlert("error", "Error", `Ocurrió un error inesperado: ${error.message}`);
         }
-        // finally { setSubmittingImage(false); }
     };
+
+
+    // --- FUNCIÓN DE SELECCIÓN DE IMAGEN (CÁMARA O GALERÍA) ---
+    const pickImage = async (source) => {
+        setShowImageSourceOptions(false); // Cerrar el menú antes de la selección/permisos
+
+        if (!user) {
+            showAlert("error", "Error", "Usuario no autenticado.");
+            return;
+        }
+
+        let pickerResult;
+
+        try {
+            if (source === 'camera') {
+                const { status: cameraStatus } = await ImagePicker.requestCameraPermissionsAsync();
+                const { status: libraryStatus } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+                
+                if (cameraStatus !== 'granted' || libraryStatus !== 'granted') {
+                    showAlert("error", "Permisos", "Se necesitan permisos de cámara y galería para tomar y guardar la foto.");
+                    return;
+                }
+                pickerResult = await ImagePicker.launchCameraAsync({
+                    allowsEditing: true,
+                    aspect: [1, 1],
+                    quality: 0.5,
+                    base64: true,
+                });
+            } else if (source === 'library') {
+                const { status: libraryStatus } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+                if (libraryStatus !== 'granted') {
+                    showAlert("error", "Permisos", "Se necesita permiso para acceder a la galería.");
+                    return;
+                }
+                pickerResult = await ImagePicker.launchImageLibraryAsync({
+                    allowsEditing: true, 
+                    aspect: [1, 1],
+                    quality: 0.5,
+                    mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                    base64: true, // Solicitar base64 para Cloudinary
+                });
+            }
+
+            if (pickerResult?.canceled || !pickerResult?.assets || pickerResult.assets.length === 0) {
+                return; 
+            }
+            
+            const asset = pickerResult.assets[0];
+            // Llamar a la función de subida con URI y base64
+            await uploadImage(asset.uri, asset.base64);
+
+        } catch (error) {
+            console.error("Image Picker error:", error);
+            if (error.message && !error.message.includes('canceled')) {
+                showAlert("error", "Error", `Ocurrió un error inesperado: ${error.message}`);
+            }
+        }
+    };
+
+
+    // --- FUNCIÓN QUE PRESENTA LAS OPCIONES AL USUARIO ---
+    const handleAvatarPress = () => {
+        // if (!isEditing) return; // Opcional: solo permitir cambio en modo edición
+        setShowImageSourceOptions(true);
+    };
+
     
     const handleUpdateProfile = async () => {
+        // ... (resto de la función handleUpdateProfile sin cambios)
         if (!user) {
             showAlert("error", "Error", "No hay usuario autenticado.");
             return;
@@ -422,6 +494,7 @@ export default function Perfil({ navigation }) {
     };
 
     const handleCancelEdit = () => {
+        // ... (resto de la función handleCancelEdit sin cambios)
         // 1. Restablecer campos de perfil usando los datos de 'originalData'
         setFirstName(originalData.firstName);
         setLastName(originalData.lastName);
@@ -444,23 +517,27 @@ export default function Perfil({ navigation }) {
     };
   
     const handleFirstNameChange = (text) => {
+        // ... (resto de la función handleFirstNameChange sin cambios)
         const filteredText = text.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]/g, ''); 
         setFirstName(filteredText);
         setFirstNameError(filteredText && !validateName(filteredText));
     };
 
     const handleLastNameChange = (text) => {
+        // ... (resto de la función handleLastNameChange sin cambios)
         const filteredText = text.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]/g, ''); 
         setLastName(filteredText);
         setLastNameError(filteredText && !validateName(filteredText));
     };
     
     const handleEmailChange = (text) => {
+        // ... (resto de la función handleEmailChange sin cambios)
         setEmail(text);
         setEmailError(text && !validateEmail(text));
     };
   
     const handleConfirmLogout = async () => {
+        // ... (resto de la función handleConfirmLogout sin cambios)
         handleCloseAlert();
         try {
             await auth.signOut();
@@ -470,6 +547,7 @@ export default function Perfil({ navigation }) {
     };
 
     const handleLogout = () => {
+        // ... (resto de la función handleLogout sin cambios)
         showAlert(
             "error", 
             "Cerrar Sesión", 
@@ -479,6 +557,7 @@ export default function Perfil({ navigation }) {
     };
   
     const handleChangePassword = async () => {
+        // ... (resto de la función handleChangePassword sin cambios)
         if (!user) {
             showAlert("error", "Error", "No hay usuario autenticado.");
             return;
@@ -598,222 +677,278 @@ export default function Perfil({ navigation }) {
 
 
     return (
-        <LinearGradient colors={["#FFFFFF", "#9FE2CF"]} style={styles.container}>
-        <View style={styles.card}>
-            <Text style={styles.title}>{isEditing ? "Editar Perfil" : "Mi Perfil"}</Text>
-            
-            {/* ==================== UI FOTO DE PERFIL ==================== */}
-            <View style={styles.avatarContainer}>
-                <Image
-                    source={{ uri: profileImage || DEFAULT_AVATAR }}
-                    style={styles.avatar}
-                />
-                
-                <TouchableOpacity
-                    style={styles.avatarEditButton}
-                    onPress={handleImagePickAndUpload} 
-                >
-                    <LinearGradient
-                        colors={["#64bae8", "#4a90e2"]}
-                        style={styles.avatarEditButtonGradient}
-                        start={{ x: 0, y: 0.5 }}
-                        end={{ x: 1, y: 0.5 }}
-                    >
-                        <FontAwesome name="camera" size={16} color="#fff" />
-                    </LinearGradient>
-                </TouchableOpacity>
-            </View>
+        <KeyboardAwareScrollView
+          contentContainerStyle={{ flexGrow: 1 }}
+          enableOnAndroid={true}
+          extraScrollHeight={-60}
+          enableAutomaticScroll={true}
+          keyboardShouldPersistTaps="handled"
+        >
+          <LinearGradient colors={["#FFFFFF", "#9FE2CF"]} style={styles.container}>
+          <View style={styles.card}>
+              <Text style={styles.title}>{isEditing ? "Editar Perfil" : "Mi Perfil"}</Text>
+              
+              {/* ==================== UI FOTO DE PERFIL ==================== */}
+              <View style={styles.avatarContainer}>
+                  <Image
+                      source={{ uri: profileImage || DEFAULT_AVATAR }}
+                      style={styles.avatar}
+                  />
+                  
+                  <TouchableOpacity
+                      style={styles.avatarEditButton}
+                      onPress={handleAvatarPress} // <-- CAMBIO: Llama a la función que abre el menú
+                  >
+                      <LinearGradient
+                          colors={["#64bae8", "#4a90e2"]}
+                          style={styles.avatarEditButtonGradient}
+                          start={{ x: 0, y: 0.5 }}
+                          end={{ x: 1, y: 0.5 }}
+                      >
+                          <FontAwesome name="camera" size={16} color="#fff" />
+                      </LinearGradient>
+                  </TouchableOpacity>
+              </View>
 
-            {/* ==================== CAMPOS DE INFORMACIÓN/EDICIÓN ==================== */}
-            {!isChangingPassword && (
-                <>
-                    {/* NOMBRE */}
-                    <Text style={styles.label}>Nombre(s)</Text>
-                    <View style={[styles.inputGroup, isEditing && firstNameError && styles.inputGroupError]}>
-                        <TextInput
-                        style={styles.input}
-                        value={firstName}
-                        onChangeText={handleFirstNameChange}
-                        editable={isEditing && !isChangingPassword}
-                        placeholder="Ej: Juan" 
-                        placeholderTextColor="#888"
-                        />
-                    </View>
-                    {isEditing && firstNameError && (
-                        <Text style={styles.errorText}>El nombre solo debe contener letras</Text>
-                    )}
-                    
-                    {/* APELLIDO */}
-                    <Text style={styles.label}>Apellido(s)</Text>
-                    <View style={[styles.inputGroup, isEditing && lastNameError && styles.inputGroupError]}>
-                        <TextInput
-                        style={styles.input}
-                        value={lastName}
-                        onChangeText={handleLastNameChange}
-                        editable={isEditing && !isChangingPassword}
-                        placeholder="Ej: Pérez García"
-                        placeholderTextColor="#888"
-                        />
-                    </View>
-                    {isEditing && lastNameError && (
-                        <Text style={styles.errorText}>El apellido solo debe contener letras</Text>
-                    )}
+              {/* ==================== CAMPOS DE INFORMACIÓN/EDICIÓN ==================== */}
+              {!isChangingPassword && (
+                  <>
+                      {/* NOMBRE */}
+                      <Text style={styles.label}>Nombre(s)</Text>
+                      <View style={[styles.inputGroup, isEditing && firstNameError && styles.inputGroupError]}>
+                          <TextInput
+                          style={styles.input}
+                          value={firstName}
+                          onChangeText={handleFirstNameChange}
+                          editable={isEditing && !isChangingPassword}
+                          placeholder="Ej: Juan" 
+                          placeholderTextColor="#888"
+                          />
+                      </View>
+                      {isEditing && firstNameError && (
+                          <Text style={styles.errorText}>El nombre solo debe contener letras</Text>
+                      )}
+                      
+                      {/* APELLIDO */}
+                      <Text style={styles.label}>Apellido(s)</Text>
+                      <View style={[styles.inputGroup, isEditing && lastNameError && styles.inputGroupError]}>
+                          <TextInput
+                          style={styles.input}
+                          value={lastName}
+                          onChangeText={handleLastNameChange}
+                          editable={isEditing && !isChangingPassword}
+                          placeholder="Ej: Pérez García"
+                          placeholderTextColor="#888"
+                          />
+                      </View>
+                      {isEditing && lastNameError && (
+                          <Text style={styles.errorText}>El apellido solo debe contener letras</Text>
+                      )}
 
-                    {/* CORREO */}
-                    <Text style={styles.label}>Correo</Text>
-                    <View style={[styles.inputGroup, isEditing && emailError && styles.inputGroupError]}>
-                        <TextInput
-                        style={styles.input}
-                        value={email}
-                        onChangeText={handleEmailChange}
-                        editable={isEditing && !isChangingPassword}
-                        keyboardType="email-address"
-                        autoCapitalize="none"
-                        placeholder="Correo"
-                        placeholderTextColor="#888"
-                        />
-                    </View>
-                    {isEditing && emailError && (
-                        <Text style={styles.errorText}>Formato de correo inválido</Text>
-                    )}
-                    
-                    {/* BOTÓN DE CAMBIAR CONTRASEÑA */}
-                    {isEditing && (
-                        <TouchableOpacity 
-                            style={styles.changePasswordButton} 
-                            onPress={() => setIsChangingPassword(true)}
-                        >
-                            <Text style={styles.changePasswordButtonText}>Cambiar Contraseña</Text>
-                        </TouchableOpacity>
-                    )}
-                </>
-            )}
+                      {/* CORREO */}
+                      <Text style={styles.label}>Correo</Text>
+                      <View style={[styles.inputGroup, isEditing && emailError && styles.inputGroupError]}>
+                          <TextInput
+                          style={styles.input}
+                          value={email}
+                          onChangeText={handleEmailChange}
+                          editable={isEditing && !isChangingPassword}
+                          keyboardType="email-address"
+                          autoCapitalize="none"
+                          placeholder="Correo"
+                          placeholderTextColor="#888"
+                          />
+                      </View>
+                      {isEditing && emailError && (
+                          <Text style={styles.errorText}>Formato de correo inválido</Text>
+                      )}
+                      
+                      {/* BOTÓN DE CAMBIAR CONTRASEÑA */}
+                      {isEditing && (
+                          <TouchableOpacity 
+                              style={styles.changePasswordButton} 
+                              onPress={() => setIsChangingPassword(true)}
+                          >
+                              <Text style={styles.changePasswordButtonText}>Cambiar Contraseña</Text>
+                          </TouchableOpacity>
+                      )}
+                  </>
+              )}
 
-            {/* ==================== SECCIÓN DE CAMBIO DE CONTRASEÑA ==================== */}
-            {isChangingPassword && (
-                <>
-                    <Text style={styles.subtitle}>Cambiar Contraseña</Text>
+              {/* ==================== SECCIÓN DE CAMBIO DE CONTRASEÑA ==================== */}
+              {isChangingPassword && (
+                  <>
+                      <Text style={styles.subtitle}>Cambiar Contraseña</Text>
 
-                    {/* CONTRASEÑA ACTUAL */}
-                    <Text style={styles.label}>Contraseña Actual</Text>
-                    <View style={[styles.inputGroup, currentPasswordError && styles.inputGroupError]}>
-                        <TextInput
-                            style={styles.input}
-                            placeholder="Contraseña Actual"
-                            value={currentPassword}
-                            onChangeText={setCurrentPassword}
-                            secureTextEntry={!showCurrentPassword}
-                            placeholderTextColor="#888"
-                        />
-                        <TouchableOpacity onPress={() => setShowCurrentPassword(!showCurrentPassword)} style={styles.eyeButton}>
-                            <FontAwesome name={showCurrentPassword ? "eye-slash" : "eye"} size={18} color="#555" />
-                        </TouchableOpacity>
-                    </View>
-                    {currentPasswordError && (
-                        <Text style={styles.errorText}>La contraseña actual no es correcta</Text>
-                    )}
+                      {/* CONTRASEÑA ACTUAL */}
+                      <Text style={styles.label}>Contraseña Actual</Text>
+                      <View style={[styles.inputGroup, currentPasswordError && styles.inputGroupError]}>
+                          <TextInput
+                              style={styles.input}
+                              placeholder="Contraseña Actual"
+                              value={currentPassword}
+                              onChangeText={setCurrentPassword}
+                              secureTextEntry={!showCurrentPassword}
+                              placeholderTextColor="#888"
+                          />
+                          <TouchableOpacity onPress={() => setShowCurrentPassword(!showCurrentPassword)} style={styles.eyeButton}>
+                              <FontAwesome name={showCurrentPassword ? "eye-slash" : "eye"} size={18} color="#555" />
+                          </TouchableOpacity>
+                      </View>
+                      {currentPasswordError && (
+                          <Text style={styles.errorText}>La contraseña actual no es correcta</Text>
+                      )}
 
-                    {/* NUEVA CONTRASEÑA */}
-                    <Text style={styles.label}>Nueva Contraseña</Text>
-                    <View style={styles.inputGroup}>
-                        <TextInput
-                            style={styles.input}
-                            placeholder="Nueva Contraseña"
-                            value={newPassword}
-                            onChangeText={setNewPassword}
-                            secureTextEntry={!showNewPassword}
-                            onFocus={() => setShowPasswordInfo(true)}
-                            onBlur={() => setShowPasswordInfo(false)}
-                            placeholderTextColor="#888"
-                        />
-                        <TouchableOpacity onPress={() => setShowNewPassword(!showNewPassword)} style={styles.eyeButton}>
-                            <FontAwesome name={showNewPassword ? "eye-slash" : "eye"} size={18} color="#555" />
-                        </TouchableOpacity>
-                    </View>
-                    
-                    {showPasswordInfo && (
-                        <View style={styles.passwordCard}>
-                            <Text style={styles.passwordCardTitle}>Requisitos de la nueva contraseña:</Text>
-                            <PasswordRequirementCheck meets={passwordChecks.hasMinLength} text="Mínimo 6 caracteres" />
-                            <PasswordRequirementCheck meets={passwordChecks.hasCase} text="Al menos una letra minúscula" />
-                            <PasswordRequirementCheck meets={passwordChecks.hasUppercase} text="Al menos una letra mayúscula" />
-                            <PasswordRequirementCheck meets={passwordChecks.hasNumber} text="Al menos un número" />
-                        </View>
-                    )}
+                      {/* NUEVA CONTRASEÑA */}
+                      <Text style={styles.label}>Nueva Contraseña</Text>
+                      <View style={styles.inputGroup}>
+                          <TextInput
+                              style={styles.input}
+                              placeholder="Nueva Contraseña"
+                              value={newPassword}
+                              onChangeText={setNewPassword}
+                              secureTextEntry={!showNewPassword}
+                              onFocus={() => setShowPasswordInfo(true)}
+                              onBlur={() => setShowPasswordInfo(false)}
+                              placeholderTextColor="#888"
+                          />
+                          <TouchableOpacity onPress={() => setShowNewPassword(!showNewPassword)} style={styles.eyeButton}>
+                              <FontAwesome name={showNewPassword ? "eye-slash" : "eye"} size={18} color="#555" />
+                          </TouchableOpacity>
+                      </View>
+                      
+                      {showPasswordInfo && (
+                          <View style={styles.passwordCard}>
+                              <Text style={styles.passwordCardTitle}>Requisitos de la nueva contraseña:</Text>
+                              <PasswordRequirementCheck meets={passwordChecks.hasMinLength} text="Mínimo 6 caracteres" />
+                              <PasswordRequirementCheck meets={passwordChecks.hasCase} text="Al menos una letra minúscula" />
+                              <PasswordRequirementCheck meets={passwordChecks.hasUppercase} text="Al menos una letra mayúscula" />
+                              <PasswordRequirementCheck meets={passwordChecks.hasNumber} text="Al menos un número" />
+                          </View>
+                      )}
 
-                    <Text style={styles.label}>Confirmar Nueva Contraseña</Text>
-                    <View style={styles.inputGroup}>
-                        <TextInput
-                            style={styles.input}
-                            placeholder="Confirme la nueva contraseña"
-                            value={confirmNewPassword}
-                            onChangeText={setConfirmNewPassword}
-                            secureTextEntry={!showConfirmNewPassword}
-                            onFocus={() => setShowPasswordMatchInfo(true)}
-                            onBlur={() => setShowPasswordMatchInfo(false)}
-                            placeholderTextColor="#888"
-                        />
-                        <TouchableOpacity onPress={() => setShowConfirmNewPassword(!showConfirmNewPassword)} style={styles.eyeButton}>
-                            <FontAwesome name={showConfirmNewPassword ? "eye-slash" : "eye"} size={18} color="#555" />
-                        </TouchableOpacity>
-                    </View>
-                    
-                    {showPasswordMatchInfo && (confirmNewPassword.length > 0) && (
-                        <PasswordMatchInfo meets={passwordsMatch} /> 
-                    )}
-                    {confirmNewPassword.length === 0 && <View style={{marginBottom: 10}}/>}
+                      <Text style={styles.label}>Confirmar Nueva Contraseña</Text>
+                      <View style={styles.inputGroup}>
+                          <TextInput
+                              style={styles.input}
+                              placeholder="Confirme la nueva contraseña"
+                              value={confirmNewPassword}
+                              onChangeText={setConfirmNewPassword}
+                              secureTextEntry={!showConfirmNewPassword}
+                              onFocus={() => setShowPasswordMatchInfo(true)}
+                              onBlur={() => setShowPasswordMatchInfo(false)}
+                              placeholderTextColor="#888"
+                          />
+                          <TouchableOpacity onPress={() => setShowConfirmNewPassword(!showConfirmNewPassword)} style={styles.eyeButton}>
+                              <FontAwesome name={showConfirmNewPassword ? "eye-slash" : "eye"} size={18} color="#555" />
+                          </TouchableOpacity>
+                      </View>
+                      
+                      {showPasswordMatchInfo && (confirmNewPassword.length > 0) && (
+                          <PasswordMatchInfo meets={passwordsMatch} /> 
+                      )}
+                      {confirmNewPassword.length === 0 && <View style={{marginBottom: 10}}/>}
 
-                </>
-            )}
-            
-            {/* ==================== BOTÓN GUARDAR (Común) ==================== */}
-            {isEditing && (
-                <TouchableOpacity 
-                    style={styles.saveButton} 
-                    onPress={isChangingPassword ? handleChangePassword : handleUpdateProfile}
-                >
-                    <Text style={styles.saveButtonText}>{saveButtonText}</Text>
-                </TouchableOpacity>
-            )}
+                  </>
+              )}
+              
+              {/* ==================== BOTÓN GUARDAR (Común) ==================== */}
+              {isEditing && (
+                  <TouchableOpacity 
+                      style={styles.saveButton} 
+                      onPress={isChangingPassword ? handleChangePassword : handleUpdateProfile}
+                  >
+                      <Text style={styles.saveButtonText}>{saveButtonText}</Text>
+                  </TouchableOpacity>
+              )}
 
-            {/* ==================== BOTÓN EDITAR/CANCELAR EDICIÓN (Común) ==================== */}
-            <TouchableOpacity 
-                style={[styles.actionButton, { backgroundColor: editButtonColor }]}
-                onPress={() => isEditing ? handleCancelEdit() : setIsEditing(true)}
-            >
-                <FontAwesome 
-                    name={editIcon} 
-                    size={18} 
-                    color={"#fff"} 
-                    style={{ marginRight: 8 }}
-                />
-                <Text style={styles.actionButtonText}>
-                    {editButtonText}
-                </Text>
-            </TouchableOpacity>
+              {/* ==================== BOTÓN EDITAR/CANCELAR EDICIÓN (Común) ==================== */}
+              <TouchableOpacity 
+                  style={[styles.actionButton, { backgroundColor: editButtonColor }]}
+                  onPress={() => isEditing ? handleCancelEdit() : setIsEditing(true)}
+              >
+                  <FontAwesome 
+                      name={editIcon} 
+                      size={18} 
+                      color={"#fff"} 
+                      style={{ marginRight: 8 }}
+                  />
+                  <Text style={styles.actionButtonText}>
+                      {editButtonText}
+                  </Text>
+              </TouchableOpacity>
 
 
-            {/* BOTÓN DE CERRAR SESIÓN */}
-            <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-            <Text style={styles.logoutButtonText}>Cerrar sesión</Text>
-            </TouchableOpacity>
-        </View>
-        
-        {/* RENDERIZAR EL CUSTOM ALERT */}
-        <CustomAlert
-            visible={alertConfig.visible}
-            type={alertConfig.type}
-            title={alertConfig.title}
-            message={alertConfig.message}
-            
-            onCancel={handleCloseAlert}
-            onConfirm={alertConfig.isConfirmation ? handleConfirmLogout : handleCloseAlert} 
-            
-            showCancel={alertConfig.isConfirmation}
-            
-            buttonText={alertConfig.isConfirmation ? "CERRAR SESIÓN" : "Aceptar"} 
-        />
-        </LinearGradient>
+              {/* BOTÓN DE CERRAR SESIÓN */}
+              <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+              <Text style={styles.logoutButtonText}>Cerrar sesión</Text>
+              </TouchableOpacity>
+          </View>
+          
+          {/* ==================== MODAL DE SELECCIÓN DE IMAGEN ==================== */}
+          <Modal
+              animationType="fade"
+              transparent={true}
+              visible={showImageSourceOptions}
+              onRequestClose={() => setShowImageSourceOptions(false)}
+          >
+              <TouchableOpacity 
+                  style={styles.menuOverlay} 
+                  activeOpacity={1}
+                  onPress={() => setShowImageSourceOptions(false)} // Cerrar al tocar el fondo
+              >
+                  <View style={styles.menuContainer}>
+                      <Text style={styles.menuTitle}>Seleccionar Foto</Text>
+                      
+                      {/* Opción Cámara */}
+                      <TouchableOpacity 
+                          style={styles.menuOption} 
+                          onPress={() => pickImage('camera')}
+                      >
+                          <FontAwesome name="camera" size={20} color="#64bae8" style={{marginRight: 10}}/>
+                          <Text style={styles.menuOptionText}>Usar Cámara</Text>
+                      </TouchableOpacity>
+
+                      <View style={styles.menuDivider} />
+
+                      {/* Opción Galería */}
+                      <TouchableOpacity 
+                          style={styles.menuOption} 
+                          onPress={() => pickImage('library')}
+                      >
+                          <FontAwesome name="image" size={20} color="#64bae8" style={{marginRight: 10}}/>
+                          <Text style={styles.menuOptionText}>Elegir de Galería</Text>
+                      </TouchableOpacity>
+                      
+                      {/* Botón de Cancelar */}
+                      <TouchableOpacity 
+                          style={[styles.menuOption, styles.menuCancel]} 
+                          onPress={() => setShowImageSourceOptions(false)}
+                      >
+                          <Text style={styles.menuCancelText}>Cancelar</Text>
+                      </TouchableOpacity>
+
+                  </View>
+              </TouchableOpacity>
+          </Modal>
+
+
+          {/* RENDERIZAR EL CUSTOM ALERT */}
+          <CustomAlert
+              visible={alertConfig.visible}
+              type={alertConfig.type}
+              title={alertConfig.title}
+              message={alertConfig.message}
+              
+              onCancel={handleCloseAlert}
+              onConfirm={alertConfig.isConfirmation ? handleConfirmLogout : handleCloseAlert} 
+              
+              showCancel={alertConfig.isConfirmation}
+              
+              buttonText={alertConfig.isConfirmation ? "CERRAR SESIÓN" : "Aceptar"} 
+          />
+          </LinearGradient>
+      </KeyboardAwareScrollView>
     );
 }
 
@@ -871,7 +1006,7 @@ const styles = StyleSheet.create({
     avatarEditButton: {
       position: 'absolute',
       bottom: 0,
-      right: 135, // Ajustar posición para centrar el círculo de la cámara
+      right: "60%", // Ajustar posición para centrar el círculo de la cámara
       elevation: 5,
     },
     avatarEditButtonGradient: {
@@ -962,7 +1097,8 @@ const styles = StyleSheet.create({
       borderRadius: 25,
       marginTop: 20,
       marginBottom: 10, 
-      width: '100%',
+      width: '60%',
+      alignSelf: "center",
     },
     actionButtonText: {
       color: "#fff",
@@ -1031,4 +1167,55 @@ const styles = StyleSheet.create({
       fontSize: 13,
       fontWeight: 'bold',
     },
+    
+    // --- ESTILOS DEL MENÚ DE OPCIONES DE IMAGEN ---
+    menuOverlay: {
+      flex: 1,
+      backgroundColor: "rgba(0, 0, 0, 0.5)",
+      justifyContent: "flex-end", // Aparece desde abajo (Action Sheet style)
+    },
+    menuContainer: {
+      backgroundColor: "#fff",
+      width: "100%",
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      padding: 20,
+      paddingBottom: 30,
+      alignItems: 'center',
+    },
+    menuTitle: {
+      fontSize: 18,
+      fontWeight: "bold",
+      color: "#333",
+      marginBottom: 15,
+    },
+    menuOption: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      width: '100%',
+      paddingVertical: 15,
+      paddingHorizontal: 10,
+    },
+    menuOptionText: {
+      fontSize: 16,
+      color: "#333",
+    },
+    menuDivider: {
+      height: 1,
+      backgroundColor: '#eee',
+      width: '90%',
+      marginVertical: 0,
+    },
+    menuCancel: {
+      marginTop: 15,
+      backgroundColor: '#f8f8f8',
+      borderRadius: 10,
+      justifyContent: 'center',
+    },
+    menuCancelText: {
+      fontSize: 16,
+      color: "#ff6b6b",
+      fontWeight: 'bold',
+    },
+    // --- FIN ESTILOS DEL MENÚ DE OPCIONES DE IMAGEN ---
 });
