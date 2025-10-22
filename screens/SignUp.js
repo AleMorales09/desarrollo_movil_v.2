@@ -1,164 +1,196 @@
 import React, { useState, useMemo } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, StatusBar, Image } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
-import { auth } from '../src/config/firebaseConfig';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { auth, db } from '../src/config/firebaseConfig'; // <-- IMPORTAR 'db'
+import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth'; // <-- IMPORTAR updateProfile
+import { doc, setDoc } from 'firebase/firestore'; // <-- IMPORTAR setDoc y doc para Firestore
 import { LinearGradient } from "expo-linear-gradient";
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import Alert from '../components/Alert';
 
 export default function SignUp({ navigation }) {
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [showPasswordInfo, setShowPasswordInfo] = useState(false);
-  const [firstNameError, setFirstNameError] = useState(false);
-  const [lastNameError, setLastNameError] = useState(false);
-  const [emailError, setEmailError] = useState(false);
-  const [showPasswordMatchInfo, setShowPasswordMatchInfo] = useState(false);
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [showPasswordInfo, setShowPasswordInfo] = useState(false);
+  const [firstNameError, setFirstNameError] = useState(false);
+  const [lastNameError, setLastNameError] = useState(false);
+  const [emailError, setEmailError] = useState(false);
+  const [showPasswordMatchInfo, setShowPasswordMatchInfo] = useState(false);
 
-  const [alertConfig, setAlertConfig] = useState({
-    visible: false,
-    type: "info",
-    title: "",
-    message: "",
-  });
-  
+  const [alertConfig, setAlertConfig] = useState({
+    visible: false,
+    type: "info",
+    title: "",
+    message: "",
+  });
+  
 
-  const showAlert = (type, title, message) => {
-    setAlertConfig({ visible: true, type, title, message });
-    if (type === "success") {
-      setTimeout(() => {
-        setAlertConfig((prev) => ({ ...prev, visible: false }));
-        navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
-      }, 3000);
-    }
-  };
+  const showAlert = (type, title, message) => {
+    setAlertConfig({ visible: true, type, title, message });
+    if (type === "success") {
+      setTimeout(() => {
+        setAlertConfig((prev) => ({ ...prev, visible: false }));
+        navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+      }, 3000);
+    }
+  };
 
-  const closeAlert = () => {
-    setAlertConfig({ ...alertConfig, visible: false });
-  };
+  const closeAlert = () => {
+    setAlertConfig({ ...alertConfig, visible: false });
+  };
 
-  // Función para validar que solo contenga letras y espacios
-  const validateName = (text) => {
-    const nameRegex = /^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]*$/;
-    return nameRegex.test(text);
-  };
+  // Función para validar que solo contenga letras y espacios
+  const validateName = (text) => {
+    const nameRegex = /^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]*$/;
+    return nameRegex.test(text);
+  };
 
-  // Función para validar formato de correo
-  const validateEmail = (text) => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(text);
-  };
+  // Función para validar formato de correo
+  const validateEmail = (text) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(text);
+  };
 
-  // Validar nombre cuando pierde el foco
-  const handleFirstNameBlur = () => {
-    if (firstName && !validateName(firstName)) {
-      setFirstNameError(true);
-    } else {
-      setFirstNameError(false);
-    }
-  };
+  // Validar nombre cuando pierde el foco
+  const handleFirstNameBlur = () => {
+    if (firstName && !validateName(firstName)) {
+      setFirstNameError(true);
+    } else {
+      setFirstNameError(false);
+    }
+  };
 
-  // Validar apellido cuando pierde el foco
-  const handleLastNameBlur = () => {
-    if (lastName && !validateName(lastName)) {
-      setLastNameError(true);
-    } else {
-      setLastNameError(false);
-    }
-  };
+  // Validar apellido cuando pierde el foco
+  const handleLastNameBlur = () => {
+    if (lastName && !validateName(lastName)) {
+      setLastNameError(true);
+    } else {
+      setLastNameError(false);
+    }
+  };
 
-  // Validar correo cuando pierde el foco
-  const handleEmailBlur = () => {
-    if (email && !validateEmail(email)) {
-      setEmailError(true);
-    } else {
-      setEmailError(false);
-    }
-  };
+  // Validar correo cuando pierde el foco
+  const handleEmailBlur = () => {
+    if (email && !validateEmail(email)) {
+      setEmailError(true);
+    } else {
+      setEmailError(false);
+    }
+  };
 
-  // Validaciones en tiempo real para la contraseña
-  const passwordChecks = useMemo(() => ({
-    hasCase: /[a-z]/.test(password),
-    hasUppercase: /[A-Z]/.test(password),
-    hasNumber: /\d/.test(password),
-    hasMinLength: password.length >= 6,
-  }), [password]);
+  // Validaciones en tiempo real para la contraseña
+  const passwordChecks = useMemo(() => ({
+    hasCase: /[a-z]/.test(password),
+    hasUppercase: /[A-Z]/.test(password),
+    hasNumber: /\d/.test(password),
+    hasMinLength: password.length >= 6,
+  }), [password]);
 
-  const passwordsMatch = useMemo(() => {
-    // Solo verificar si ambas contraseñas tienen algún valor y son iguales
-    return password.length > 0 && confirmPassword.length > 0 && password === confirmPassword;
-  }, [password, confirmPassword]);
+  const passwordsMatch = useMemo(() => {
+    // Solo verificar si ambas contraseñas tienen algún valor y son iguales
+    return password.length > 0 && confirmPassword.length > 0 && password === confirmPassword;
+  }, [password, confirmPassword]);
 
-  const handleSignUp = async () => {
-    if (!firstName || !lastName || !email || !password || !confirmPassword) {
-      showAlert("error", "Error", "Todos los campos son obligatorios.");
-      return;
-    }
+  const handleSignUp = async () => {
+    // Limpiamos los valores de nombre y apellido
+    const trimmedFirstName = firstName.trim();
+    const trimmedLastName = lastName.trim();
 
-    // Validar nombre y apellido antes de registrar
-    if (!validateName(firstName)) {
-      setFirstNameError(true);
-      showAlert("error", "Error", "El nombre solo debe contener letras.");
-      return;
-    }
+    if (!trimmedFirstName || !trimmedLastName || !email || !password || !confirmPassword) {
+      showAlert("error", "Error", "Todos los campos son obligatorios.");
+      return;
+    }
 
-    if (!validateName(lastName)) {
-      setLastNameError(true);
-      showAlert("error", "Error", "El apellido solo debe contener letras.");
-      return;
-    }
+    // Validar nombre y apellido antes de registrar
+    if (!validateName(trimmedFirstName)) {
+      setFirstNameError(true);
+      showAlert("error", "Error", "El nombre solo debe contener letras.");
+      return;
+    }
 
-    // Validar correo antes de registrar
-    if (!validateEmail(email)) {
-      setEmailError(true);
-      showAlert("error", "Error", "El formato del correo electrónico no es válido.");
-      return;
-    }
+    if (!validateName(trimmedLastName)) {
+      setLastNameError(true);
+      showAlert("error", "Error", "El apellido solo debe contener letras.");
+      return;
+    }
 
-    if (password !== confirmPassword) {
-      showAlert("error", "Error", "Las contraseñas no coinciden.");
-      return;
-    }
+    // Validar correo antes de registrar
+    if (!validateEmail(email)) {
+      setEmailError(true);
+      showAlert("error", "Error", "El formato del correo electrónico no es válido.");
+      return;
+    }
 
-    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d]{6,}$/;
-    if (!passwordRegex.test(password)) {
-      showAlert(
-        "error",
-        "Error",
-        "La contraseña debe tener al menos 6 caracteres, incluyendo una letra mayúscula, una minúscula y un número."
-      );
-      return;
-    }
+    if (password !== confirmPassword) {
+      showAlert("error", "Error", "Las contraseñas no coinciden.");
+      return;
+    }
 
-    try {
-      await createUserWithEmailAndPassword(auth, email, password);
-      showAlert("success", "Registro exitoso", "Usuario registrado con éxito.");
-    } catch (error) {
-      let errorMessage = "Hubo un problema al registrar el usuario.";
-      switch (error.code) {
-        case 'auth/email-already-in-use':
-          errorMessage = "El correo electrónico ya está en uso.";
-          break;
-        case 'auth/invalid-email':
-          errorMessage = "El formato del correo electrónico no es válido.";
-          break;
-        case 'auth/weak-password':
-          errorMessage = "La contraseña es demasiado débil.";
-          break;
-        case 'auth/network-request-failed':
-          errorMessage = "Error de conexión, por favor intenta más tarde.";
-          break;
-      }
-      showAlert("error", "Error", errorMessage);
-    }
-  };
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d]{6,}$/;
+    if (!passwordRegex.test(password)) {
+      showAlert(
+        "error",
+        "Error",
+        "La contraseña debe tener al menos 6 caracteres, incluyendo una letra mayúscula, una minúscula y un número."
+      );
+      return;
+    }
 
+    try {
+      // 1. CREAR EL USUARIO EN FIREBASE AUTH
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+
+      // 2. CREAR UN DISPLAY NAME SIMPLE Y SEGURO (O DEJAR NULO)
+      // Usaremos un display name simple que solo junte el nombre y apellido, sin espacios múltiples.
+      const newDisplayName = `${trimmedFirstName} ${trimmedLastName}`.replace(/\s+/g, ' ').trim();
+
+      // 3. ACTUALIZAR EL PERFIL DE FIREBASE AUTH (solo con el DisplayName seguro)
+      await updateProfile(user, { 
+          displayName: newDisplayName,
+          photoURL: null, // Asegurar que no hay una foto por defecto problemática
+      });
+
+      // 4. GUARDAR LOS ATRIBUTOS ADICIONALES (firstName y lastName) EN FIRESTORE
+      // Usamos el UID del usuario como ID del documento en la colección 'users'
+      await setDoc(doc(db, "users", user.uid), {
+          firstName: trimmedFirstName,
+          lastName: trimmedLastName,
+          email: user.email, // Opcional, pero bueno para redundancia
+          // Aquí puedes añadir otros campos iniciales como:
+          // createdAt: new Date(),
+          // role: 'user',
+      });
+
+      showAlert("success", "Registro exitoso", "Usuario registrado y perfil creado con éxito.");
+
+    } catch (error) {
+      let errorMessage = "Hubo un problema al registrar el usuario.";
+      switch (error.code) {
+        case 'auth/email-already-in-use':
+          errorMessage = "El correo electrónico ya está en uso.";
+          break;
+        case 'auth/invalid-email':
+          errorMessage = "El formato del correo electrónico no es válido.";
+          break;
+        case 'auth/weak-password':
+          errorMessage = "La contraseña es demasiado débil.";
+          break;
+        case 'auth/network-request-failed':
+          errorMessage = "Error de conexión, por favor intenta más tarde.";
+          break;
+        default:
+            console.error("Firebase SignUp error:", error);
+            break;
+      }
+      showAlert("error", "Error", errorMessage);
+    }
+  };
 
   // --- NUEVA FUNCIÓN PARA MANEJAR EL CAMBIO DE TEXTO DEL NOMBRE ---
   const handleFirstNameChange = (text) => {
