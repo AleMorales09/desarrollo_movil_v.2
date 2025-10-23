@@ -10,7 +10,7 @@ export const BottomTab = () => {
     return(
         <Tab.Navigator>
             <Tab.Screen name='Home' component={Home} />
-            <Tab.Screen name='xd' component={SignUp} />
+            <Tab.Screen name='SignUp' component={SignUp} />
         </Tab.Navigator>
     );
 };

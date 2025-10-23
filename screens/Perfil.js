@@ -7,7 +7,7 @@ import {
     TextInput, 
     Image, 
     ActivityIndicator, 
-    Modal, // <-- NUEVA IMPORTACIÓN REQUERIDA
+    Modal, 
 } from "react-native";
 import * as ImagePicker from 'expo-image-picker'; 
 import CustomAlert from '../components/Alert'; 
@@ -35,13 +35,14 @@ import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view
 // ==========================================================
 // CONFIGURACIÓN DE CLOUDINARY (¡DEBES CAMBIAR ESTOS VALORES!)
 // ==========================================================
+// ⚠️ ¡IMPORTANTE! Revisa que estos valores sean correctos para tu cuenta de Cloudinary.
 const CLOUDINARY_CLOUD_NAME = 'dcambilud'; 
 const CLOUDINARY_UPLOAD_PRESET = 'consultorio_foto'; 
 const CLOUDINARY_API_KEY = '452396411417448';
 const DEFAULT_AVATAR = 'https://res.cloudinary.com/demo/image/upload/v1607552554/avatar_placeholder.png';
 
 // ==========================================================
-// FUNCIÓN AUXILIAR PARA PARSEAR EL NOMBRE COMPLETO (SOLO FALLBACK)
+// FUNCIÓN AUXILIAR PARA PARSEAR EL NOMBRE COMPLETO
 // ==========================================================
 const parseDisplayName = (displayName) => {
     if (!displayName) return ['', ''];
@@ -64,6 +65,18 @@ const cleanAndBuildDisplayName = (firstName, lastName) => {
     return rawDisplayName.replace(/\s+/g, ' ').trim();
 };
 
+// ==========================================================
+// FUNCIONES DE LIMPIEZA DE DIRECCIÓN Y TELÉFONO
+// ==========================================================
+
+const cleanAddress = (text) => {
+    return text.replace(/[^a-zA-Z0-9ñÑáéíóúÁÉÍÓÚ\s]/g, '');
+};
+
+const cleanPhone = (text) => {
+    return text.replace(/\D/g, '');
+};
+
 
 // ==========================================================
 // PANTALLA PRINCIPAL DE PERFIL CON EDICIÓN
@@ -73,7 +86,7 @@ export default function Perfil({ navigation }) {
     const user = auth.currentUser;
   
     // ==========================================================
-    // 1. ESTADOS (SECUENCIA DE HOOKS)
+    // 1. ESTADOS
     // ==========================================================
     const [isDataLoaded, setIsDataLoaded] = useState(false);
 
@@ -83,19 +96,28 @@ export default function Perfil({ navigation }) {
     const [email, setEmail] = useState(user?.email || '');
     const [profileImage, setProfileImage] = useState(user?.photoURL || null); 
 
-    // Estado para guardar los datos originales (para cancelación y comparación)
+    // Estado para la carga de la imagen
+    const [isLoadingImage, setIsLoadingImage] = useState(false); // <--- NUEVO ESTADO DE CARGA
+    
+    // Nuevos estados para dirección y teléfono
+    const [address, setAddress] = useState(''); 
+    const [phone, setPhone] = useState(''); 
+    
+    // Estado para guardar los datos originales
     const [originalData, setOriginalData] = useState({ 
         firstName: '', 
         lastName: '', 
         email: user?.email || '', 
-        photoURL: user?.photoURL || null 
+        photoURL: user?.photoURL || null,
+        address: '', 
+        phone: '', 
     });
     
     // Estados de la UI
     const [isEditing, setIsEditing] = useState(false);
     const [isChangingPassword, setIsChangingPassword] = useState(false); 
     
-    const [showImageSourceOptions, setShowImageSourceOptions] = useState(false); // <-- NUEVO ESTADO PARA EL MENÚ
+    const [showImageSourceOptions, setShowImageSourceOptions] = useState(false); 
 
     // Estados de la contraseña
     const [currentPassword, setCurrentPassword] = useState('');
@@ -123,16 +145,16 @@ export default function Perfil({ navigation }) {
     });
     
     // ==========================================================
-    // 2. EFECTOS (SECUENCIA DE HOOKS)
+    // 2. EFECTOS
     // ==========================================================
     useEffect(() => {
         const fetchUserData = async () => {
             if (!user) {
-                setIsDataLoaded(true); // Cargar sin datos si no hay usuario
+                setIsDataLoaded(true); 
                 return;
             }
 
-            let loadedFirstName, loadedLastName, loadedEmail, loadedPhotoURL;
+            let loadedFirstName, loadedLastName, loadedEmail, loadedPhotoURL, loadedAddress, loadedPhone;
 
             try {
                 const userDocRef = doc(db, "users", user.uid);
@@ -144,12 +166,17 @@ export default function Perfil({ navigation }) {
                     loadedFirstName = data.firstName || '';
                     loadedLastName = data.lastName || '';
                     loadedEmail = data.email || user.email; 
+                    loadedAddress = data.address || '';
+                    loadedPhone = data.phone ? cleanPhone(data.phone) : ''; 
+                    
                 } else {
                     // 2. Fallback a Auth
                     const [authFirstName, authLastName] = parseDisplayName(user.displayName);
                     loadedFirstName = authFirstName;
                     loadedLastName = authLastName;
                     loadedEmail = user.email;
+                    loadedAddress = '';
+                    loadedPhone = '';
 
                     // Opcional: Crear el documento de Firestore para el usuario legado
                     if (loadedFirstName || loadedLastName) {
@@ -157,6 +184,8 @@ export default function Perfil({ navigation }) {
                             firstName: loadedFirstName,
                             lastName: loadedLastName,
                             email: loadedEmail,
+                            address: loadedAddress, 
+                            phone: loadedPhone,     
                         }, { merge: true }); 
                     }
                 }
@@ -168,19 +197,22 @@ export default function Perfil({ navigation }) {
                 setLastName(loadedLastName);
                 setEmail(loadedEmail);
                 setProfileImage(loadedPhotoURL); 
+                setAddress(loadedAddress);
+                setPhone(loadedPhone);
 
                 // Establecer datos originales para cancelación/comparación
                 setOriginalData({ 
                     firstName: loadedFirstName, 
                     lastName: loadedLastName, 
                     email: loadedEmail, 
-                    photoURL: loadedPhotoURL 
+                    photoURL: loadedPhotoURL,
+                    address: loadedAddress,
+                    phone: loadedPhone,
                 });
 
             } catch (error) {
                 console.error("Error al cargar datos de Firestore:", error);
                 
-                // Fallback total a datos de Auth en caso de error
                 const [authFirstName, authLastName] = parseDisplayName(user.displayName);
                 loadedFirstName = authFirstName;
                 loadedLastName = authLastName;
@@ -189,11 +221,16 @@ export default function Perfil({ navigation }) {
                 setLastName(loadedLastName);
                 setEmail(user.email || '');
                 setProfileImage(user.photoURL || null);
+                setAddress('');
+                setPhone('');
+                
                 setOriginalData({ 
                     firstName: loadedFirstName, 
                     lastName: loadedLastName, 
                     email: user.email || '', 
-                    photoURL: user.photoURL || null 
+                    photoURL: user.photoURL || null,
+                    address: '',
+                    phone: '',
                 });
             } finally {
                 setIsDataLoaded(true);
@@ -204,7 +241,7 @@ export default function Perfil({ navigation }) {
     }, [user]); 
     
     // ==========================================================
-    // 3. MEMORIZACIÓN (SECUENCIA DE HOOKS)
+    // 3. MEMORIZACIÓN (VALIDACIÓN DE CONTRASEÑA)
     // ==========================================================
 
     const passwordChecks = useMemo(() => ({
@@ -244,159 +281,137 @@ export default function Perfil({ navigation }) {
         setAlertConfig({ ...alertConfig, visible: false });
     };
     
-    // ==========================================================
-    // LÓGICA DE MANEJO DE IMÁGENES REFACTORIZADA
-    // ==========================================================
-
-    // --- FUNCIÓN AUXILIAR DE SUBIDA A CLOUDINARY Y FIREBASE ---
-    const uploadImage = async (uri, base64) => {
-        if (!user) {
-            showAlert("error", "Error", "Usuario no autenticado.");
-            return;
-        }
-        
-        setShowImageSourceOptions(false); // Cierra el menú de opciones
-        // Usamos CustomAlert para el mensaje de carga
-        showAlert("info", "Subiendo...", "Estamos subiendo la imagen, por favor espera.", false); 
-
-        try {
-            // Construir dataUri si se usa base64 (necesario para Cloudinary)
-            const dataUri = base64 ? `data:image/jpeg;base64,${base64}` : uri;
-            
-            // 1. Subir a Cloudinary (fetch) 
-            const cloudinaryUrl = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`;
-            
-            const data = {
-                file: dataUri,
-                upload_preset: CLOUDINARY_UPLOAD_PRESET,
-                api_key: CLOUDINARY_API_KEY, 
-            };
-            
-            let newPhotoURL = uri; // Fallback al URI local para simulación o errores
-            
-            // *** IMPLEMENTACIÓN REAL DE CLOUDINARY DEBE IR AQUÍ ***
-            // Por ahora, usamos una simulación, ya que la anterior era un placeholder
-            console.log("Simulando subida de imagen a Cloudinary. Usando URI local.");
-            await new Promise(resolve => setTimeout(resolve, 1500)); 
-            // newPhotoURL = (el resultado de Cloudinary.secure_url) o mantenemos 'uri' para pruebas locales.
-            // newPhotoURL se mantiene como 'uri' para permitir la visualización local si el backend no está conectado.
-            
-            // 2. PRE-ACTUALIZACIÓN: Limpiar el displayName.
-            const newDisplayName = cleanAndBuildDisplayName(firstName, lastName);
-            
-            // 3. Actualizar Auth y Firestore
-            try {
-                if (user.displayName !== newDisplayName) {
-                    await updateProfile(user, { displayName: newDisplayName });
-                }
-                await updateProfile(user, { photoURL: newPhotoURL });
-                
-                const userDocRef = doc(db, "users", user.uid);
-                await updateDoc(userDocRef, { photoURL: newPhotoURL });
-
-                // 4. Actualizar estado local y originalData
-                setProfileImage(newPhotoURL);
-                setOriginalData(prev => ({ ...prev, photoURL: newPhotoURL })); 
-                
-                setAlertConfig(prev => ({ ...prev, visible: false })); // Cerrar la alerta de subida
-                showAlert("success", "Éxito", "Foto de perfil actualizada correctamente.");
-
-            } catch (firebaseUpdateError) {
-                console.error("Firebase update error (Photo):", firebaseUpdateError);
-                let errorMessage = "La foto se subió, pero falló la actualización en Firebase: " + firebaseUpdateError.message;
-                setAlertConfig(prev => ({ ...prev, visible: false })); // Cerrar la alerta de subida
-                showAlert("error", "Error", errorMessage);
-            }
-        
-        } catch (error) {
-            console.error("Image Picker/Upload error:", error);
-            setAlertConfig(prev => ({ ...prev, visible: false })); // Cerrar la alerta de subida
-            showAlert("error", "Error", `Ocurrió un error inesperado: ${error.message}`);
-        }
-    };
-
-
-    // --- FUNCIÓN DE SELECCIÓN DE IMAGEN (CÁMARA O GALERÍA) ---
-    const pickImage = async (source) => {
-        setShowImageSourceOptions(false); // Cerrar el menú antes de la selección/permisos
-
-        if (!user) {
-            showAlert("error", "Error", "Usuario no autenticado.");
-            return;
-        }
-
-        let pickerResult;
-
-        try {
-            if (source === 'camera') {
-                const { status: cameraStatus } = await ImagePicker.requestCameraPermissionsAsync();
-                const { status: libraryStatus } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-                
-                if (cameraStatus !== 'granted' || libraryStatus !== 'granted') {
-                    showAlert("error", "Permisos", "Se necesitan permisos de cámara y galería para tomar y guardar la foto.");
-                    return;
-                }
-                pickerResult = await ImagePicker.launchCameraAsync({
-                    allowsEditing: true,
-                    aspect: [1, 1],
-                    quality: 0.5,
-                    base64: true,
-                });
-            } else if (source === 'library') {
-                const { status: libraryStatus } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-                if (libraryStatus !== 'granted') {
-                    showAlert("error", "Permisos", "Se necesita permiso para acceder a la galería.");
-                    return;
-                }
-                pickerResult = await ImagePicker.launchImageLibraryAsync({
-                    allowsEditing: true, 
-                    aspect: [1, 1],
-                    quality: 0.5,
-                    mediaTypes: ImagePicker.MediaTypeOptions.Images,
-                    base64: true, // Solicitar base64 para Cloudinary
-                });
-            }
-
-            if (pickerResult?.canceled || !pickerResult?.assets || pickerResult.assets.length === 0) {
-                return; 
-            }
-            
-            const asset = pickerResult.assets[0];
-            // Llamar a la función de subida con URI y base64
-            await uploadImage(asset.uri, asset.base64);
-
-        } catch (error) {
-            console.error("Image Picker error:", error);
-            if (error.message && !error.message.includes('canceled')) {
-                showAlert("error", "Error", `Ocurrió un error inesperado: ${error.message}`);
-            }
-        }
-    };
-
-
-    // --- FUNCIÓN QUE PRESENTA LAS OPCIONES AL USUARIO ---
     const handleAvatarPress = () => {
-        // if (!isEditing) return; // Opcional: solo permitir cambio en modo edición
+        // Abre el Modal/Menú de opciones de imagen (Cámara/Galería)
         setShowImageSourceOptions(true);
     };
 
+    /**
+     * @description Función para subir la imagen a Cloudinary.
+     */
+    const uploadImageToCloudinary = async (uri) => {
+        // Crear el objeto FormData para el envío
+        const data = new FormData();
+        // Generar un nombre de archivo único
+        data.append('file', { 
+            uri, 
+            name: `profile_${user.uid}_${Date.now()}.jpg`, 
+            type: 'image/jpeg' 
+        });
+        // Credenciales de Cloudinary
+        data.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+        data.append('cloud_name', CLOUDINARY_CLOUD_NAME);
+        
+        // Ejecutar la petición POST
+        const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, {
+            method: 'POST',
+            body: data,
+            // Cloudinary no requiere headers para el Content-Type de FormData
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Cloudinary upload failed: ${response.status} - ${errorText}`);
+        }
+        
+        const result = await response.json();
+        return result.secure_url;
+    };
+
+
+    /**
+     * @description Función que gestiona la selección y la subida de la imagen.
+     */
+    const uploadImage = async (uri) => {
+        if (!user) {
+            showAlert("error", "Error", "No hay usuario autenticado.");
+            return;
+        }
+
+        setIsLoadingImage(true); // Iniciar la carga
+
+        try {
+            // PASO 1: Subir a Cloudinary
+            const cloudinaryUrl = await uploadImageToCloudinary(uri);
+            
+            if (cloudinaryUrl) {
+                // PASO 2: Actualizar la URL en Firebase Auth
+                await updateProfile(user, { photoURL: cloudinaryUrl });
+                
+                // PASO 3: Actualizar estados locales y originales
+                setProfileImage(cloudinaryUrl);
+                setOriginalData(prev => ({ ...prev, photoURL: cloudinaryUrl }));
+                
+                showAlert("success", "Éxito", "Foto de perfil actualizada correctamente.");
+            } else {
+                showAlert("error", "Error de Carga", "No se pudo obtener la URL de Cloudinary.");
+            }
+        } catch (error) {
+            console.error("Error al subir imagen:", error);
+            
+            // Mensaje de error más específico
+            const userError = error.message.includes("Cloudinary upload failed") 
+                ? "Fallo en la subida a Cloudinary. Revisa tu PRESET y Cloud Name en el código." 
+                : "Fallo al subir la imagen de perfil. Inténtalo de nuevo.";
+            
+            showAlert("error", "Error", userError);
+        } finally {
+            setIsLoadingImage(false); // Detener la carga
+        }
+    };
     
+    // Lógica para seleccionar la imagen
+    const pickImage = async (source) => {
+        setShowImageSourceOptions(false); 
+        
+        let result;
+        const mediaLibraryPermission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        
+        if (source === 'camera') {
+            const cameraPermission = await ImagePicker.requestCameraPermissionsAsync();
+            if (!cameraPermission.granted) {
+                showAlert("error", "Permiso Requerido", "Necesitamos permiso para acceder a la cámara.");
+                return;
+            }
+            result = await ImagePicker.launchCameraAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                allowsEditing: true,
+                aspect: [1, 1],
+                quality: 0.8,
+            });
+        } else {
+            if (!mediaLibraryPermission.granted) {
+                showAlert("error", "Permiso Requerido", "Necesitamos permiso para acceder a la galería.");
+                return;
+            }
+            result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                allowsEditing: true,
+                aspect: [1, 1],
+                quality: 0.8,
+            });
+        }
+    
+        if (!result.canceled) {
+            uploadImage(result.assets[0].uri);
+        }
+    };
+
+
     const handleUpdateProfile = async () => {
-        // ... (resto de la función handleUpdateProfile sin cambios)
         if (!user) {
             showAlert("error", "Error", "No hay usuario autenticado.");
             return;
         }
         
         if (isChangingPassword) {
-            // Este botón solo debería usarse para guardar perfil, pero por seguridad, llamamos a la función
             handleChangePassword();
             return;
         }
 
         let hasError = false;
 
-        // Validación de obligatoriedad y caracteres no válidos
+        // Validación de campos
         if (!firstName.trim() || !lastName.trim()) {
             showAlert("error", "Error", "El nombre y apellido son obligatorios.");
             hasError = true;
@@ -419,7 +434,9 @@ export default function Perfil({ navigation }) {
             const trimmedFirstName = firstName.trim();
             const trimmedLastName = lastName.trim();
 
-            // PASO 1: Limpieza y construcción del nuevo DisplayName (para Auth)
+            const trimmedAddress = cleanAddress(address);
+            const trimmedPhone = cleanPhone(phone);
+
             const newDisplayName = cleanAndBuildDisplayName(trimmedFirstName, trimmedLastName); 
 
             let authProfileUpdated = false;
@@ -432,7 +449,7 @@ export default function Perfil({ navigation }) {
                 authProfileUpdated = true;
             }
 
-            // 3. Actualizar email de Auth
+            // 3. Actualizar email de Auth 
             if (user.email !== email) {
                 await updateEmail(user, email); 
                 emailUpdated = true;
@@ -442,11 +459,18 @@ export default function Perfil({ navigation }) {
             const userDocRef = doc(db, "users", user.uid);
             
             // Comprobar si hay cambios en los campos de Firestore
-            if (originalData.firstName !== trimmedFirstName || originalData.lastName !== trimmedLastName || originalData.email !== email) {
+            if (originalData.firstName !== trimmedFirstName || 
+                originalData.lastName !== trimmedLastName || 
+                originalData.email !== email ||
+                originalData.address !== trimmedAddress ||
+                originalData.phone !== trimmedPhone 
+            ) {
                 await updateDoc(userDocRef, {
                     firstName: trimmedFirstName,
                     lastName: trimmedLastName,
                     email: email,
+                    address: trimmedAddress,
+                    phone: trimmedPhone,
                 });
                 firestoreUpdated = true;
             }
@@ -460,7 +484,13 @@ export default function Perfil({ navigation }) {
                     firstName: trimmedFirstName, 
                     lastName: trimmedLastName, 
                     email: email,
+                    address: trimmedAddress,
+                    phone: trimmedPhone,
                 }));
+                
+                setAddress(trimmedAddress);
+                setPhone(trimmedPhone);
+                
                 showAlert("success", "Éxito", "Perfil actualizado correctamente.");
             } else {
                 showAlert("info", "Información", "No se detectaron cambios para guardar.");
@@ -494,20 +524,18 @@ export default function Perfil({ navigation }) {
     };
 
     const handleCancelEdit = () => {
-        // ... (resto de la función handleCancelEdit sin cambios)
-        // 1. Restablecer campos de perfil usando los datos de 'originalData'
         setFirstName(originalData.firstName);
         setLastName(originalData.lastName);
         setEmail(originalData.email);
         setProfileImage(originalData.photoURL); 
+        setAddress(originalData.address);
+        setPhone(originalData.phone);
 
-        // 2. Restablecer campos de contraseña
         setCurrentPassword('');
         setNewPassword('');
         setConfirmNewPassword('');
         setCurrentPasswordError(false);
 
-        // 3. Limpiar errores visuales y salir
         setFirstNameError(false);
         setLastNameError(false);
         setEmailError(false);
@@ -517,27 +545,23 @@ export default function Perfil({ navigation }) {
     };
   
     const handleFirstNameChange = (text) => {
-        // ... (resto de la función handleFirstNameChange sin cambios)
         const filteredText = text.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]/g, ''); 
         setFirstName(filteredText);
         setFirstNameError(filteredText && !validateName(filteredText));
     };
 
     const handleLastNameChange = (text) => {
-        // ... (resto de la función handleLastNameChange sin cambios)
         const filteredText = text.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]/g, ''); 
         setLastName(filteredText);
         setLastNameError(filteredText && !validateName(filteredText));
     };
     
     const handleEmailChange = (text) => {
-        // ... (resto de la función handleEmailChange sin cambios)
         setEmail(text);
         setEmailError(text && !validateEmail(text));
     };
   
     const handleConfirmLogout = async () => {
-        // ... (resto de la función handleConfirmLogout sin cambios)
         handleCloseAlert();
         try {
             await auth.signOut();
@@ -547,7 +571,6 @@ export default function Perfil({ navigation }) {
     };
 
     const handleLogout = () => {
-        // ... (resto de la función handleLogout sin cambios)
         showAlert(
             "error", 
             "Cerrar Sesión", 
@@ -557,7 +580,6 @@ export default function Perfil({ navigation }) {
     };
   
     const handleChangePassword = async () => {
-        // ... (resto de la función handleChangePassword sin cambios)
         if (!user) {
             showAlert("error", "Error", "No hay usuario autenticado.");
             return;
@@ -623,7 +645,7 @@ export default function Perfil({ navigation }) {
     };
 
     // ==========================================================
-    // 5. RENDERIZADO CONDICIONAL DE CARGA (FUERA DE LOS HOOKS)
+    // 5. RENDERIZADO CONDICIONAL DE CARGA
     // ==========================================================
     
     if (!isDataLoaded) {
@@ -690,14 +712,24 @@ export default function Perfil({ navigation }) {
               
               {/* ==================== UI FOTO DE PERFIL ==================== */}
               <View style={styles.avatarContainer}>
-                  <Image
-                      source={{ uri: profileImage || DEFAULT_AVATAR }}
-                      style={styles.avatar}
-                  />
+                  {isLoadingImage ? (
+                      // Indicador de carga mientras sube la imagen
+                      <View style={[styles.avatar, styles.loadingOverlay]}>
+                          <ActivityIndicator size="large" color="#64bae8" />
+                          <Text style={styles.loadingText}>Subiendo...</Text>
+                      </View>
+                  ) : (
+                      // Imagen de perfil normal
+                      <Image
+                          source={{ uri: profileImage || DEFAULT_AVATAR }}
+                          style={styles.avatar}
+                      />
+                  )}
                   
                   <TouchableOpacity
                       style={styles.avatarEditButton}
-                      onPress={handleAvatarPress} // <-- CAMBIO: Llama a la función que abre el menú
+                      onPress={handleAvatarPress} 
+                      disabled={isLoadingImage} // Deshabilitar durante la carga
                   >
                       <LinearGradient
                           colors={["#64bae8", "#4a90e2"]}
@@ -721,7 +753,7 @@ export default function Perfil({ navigation }) {
                           value={firstName}
                           onChangeText={handleFirstNameChange}
                           editable={isEditing && !isChangingPassword}
-                          placeholder="Ej: Juan" 
+                          placeholder="Ingrese su nombre"
                           placeholderTextColor="#888"
                           />
                       </View>
@@ -737,7 +769,7 @@ export default function Perfil({ navigation }) {
                           value={lastName}
                           onChangeText={handleLastNameChange}
                           editable={isEditing && !isChangingPassword}
-                          placeholder="Ej: Pérez García"
+                          placeholder="Ingrese su apellido"
                           placeholderTextColor="#888"
                           />
                       </View>
@@ -774,6 +806,40 @@ export default function Perfil({ navigation }) {
                       )}
                   </>
               )}
+              
+              {/* ==================== NUEVOS CAMPOS (VISIBLES SOLO EN EDICIÓN) ==================== */}
+              {isEditing && !isChangingPassword && (
+                  <>
+                      {/* DIRECCIÓN */}
+                      <Text style={styles.label}>Dirección</Text>
+                      <View style={styles.inputGroup}>
+                          <TextInput
+                              style={styles.input}
+                              placeholder="Calle, número, ciudad, etc."
+                              placeholderTextColor="#888"
+                              value={address}
+                              onChangeText={text => setAddress(cleanAddress(text))}
+                              editable={isEditing}
+                          />
+                      </View>
+
+                      {/* TELÉFONO */}
+                      <Text style={styles.label}>Teléfono</Text>
+                      <View style={styles.inputGroup}>
+                          <TextInput
+                              style={styles.input}
+                              placeholder="Número de teléfono"
+                              placeholderTextColor="#888"
+                              value={phone}
+                              keyboardType="numeric" 
+                              onChangeText={text => setPhone(cleanPhone(text))}
+                              editable={isEditing}
+                          />
+                      </View>
+                  </>
+              )}
+              {/* ==================== FIN NUEVOS CAMPOS ==================== */}
+
 
               {/* ==================== SECCIÓN DE CAMBIO DE CONTRASEÑA ==================== */}
               {isChangingPassword && (
@@ -857,6 +923,7 @@ export default function Perfil({ navigation }) {
                   <TouchableOpacity 
                       style={styles.saveButton} 
                       onPress={isChangingPassword ? handleChangePassword : handleUpdateProfile}
+                      disabled={isLoadingImage} // Deshabilitar si está subiendo la imagen
                   >
                       <Text style={styles.saveButtonText}>{saveButtonText}</Text>
                   </TouchableOpacity>
@@ -866,6 +933,7 @@ export default function Perfil({ navigation }) {
               <TouchableOpacity 
                   style={[styles.actionButton, { backgroundColor: editButtonColor }]}
                   onPress={() => isEditing ? handleCancelEdit() : setIsEditing(true)}
+                  disabled={isLoadingImage} // Deshabilitar si está subiendo la imagen
               >
                   <FontAwesome 
                       name={editIcon} 
@@ -895,7 +963,7 @@ export default function Perfil({ navigation }) {
               <TouchableOpacity 
                   style={styles.menuOverlay} 
                   activeOpacity={1}
-                  onPress={() => setShowImageSourceOptions(false)} // Cerrar al tocar el fondo
+                  onPress={() => setShowImageSourceOptions(false)} 
               >
                   <View style={styles.menuContainer}>
                       <Text style={styles.menuTitle}>Seleccionar Foto</Text>
@@ -952,6 +1020,9 @@ export default function Perfil({ navigation }) {
     );
 }
 
+// ==========================================================
+// ESTILOS
+// ==========================================================
 const styles = StyleSheet.create({
     container: {
       flex: 1,
@@ -1003,10 +1074,23 @@ const styles = StyleSheet.create({
       borderWidth: 3,
       borderColor: '#05f7c2',
     },
+    // Estilos para el indicador de carga
+    loadingOverlay: { 
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    loadingText: {
+        color: '#64bae8',
+        marginTop: 5,
+        fontSize: 12,
+        fontWeight: 'bold',
+        position: 'absolute',
+        bottom: 5,
+    },
     avatarEditButton: {
       position: 'absolute',
       bottom: 0,
-      right: "60%", // Ajustar posición para centrar el círculo de la cámara
+      right: "60%", 
       elevation: 5,
     },
     avatarEditButtonGradient: {
@@ -1021,7 +1105,7 @@ const styles = StyleSheet.create({
     // --- FIN ESTILOS DE FOTO DE PERFIL ---
   
   
-    // --- ESTILOS DE PERFIL ---
+    // --- ESTILOS DE PERFIL Y BOTONES ---
     label: {
       fontSize: 14, 
       fontWeight: "bold",
@@ -1106,7 +1190,7 @@ const styles = StyleSheet.create({
       fontWeight: "bold",
     },
   
-    // Botón Cerrar Sesión (Mantenido)
+    // Botón Cerrar Sesión
     logoutButton: {
       backgroundColor: "#ff6b6b", 
       paddingVertical: 12,
@@ -1172,7 +1256,7 @@ const styles = StyleSheet.create({
     menuOverlay: {
       flex: 1,
       backgroundColor: "rgba(0, 0, 0, 0.5)",
-      justifyContent: "flex-end", // Aparece desde abajo (Action Sheet style)
+      justifyContent: "flex-end", 
     },
     menuContainer: {
       backgroundColor: "#fff",
@@ -1217,5 +1301,4 @@ const styles = StyleSheet.create({
       color: "#ff6b6b",
       fontWeight: 'bold',
     },
-    // --- FIN ESTILOS DEL MENÚ DE OPCIONES DE IMAGEN ---
 });

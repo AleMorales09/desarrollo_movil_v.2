@@ -35,7 +35,7 @@ export default function SignUp({ navigation }) {
     if (type === "success") {
       setTimeout(() => {
         setAlertConfig((prev) => ({ ...prev, visible: false }));
-        navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
+        navigation.reset({ index: 0, routes: [{ name: 'SignUp' }] });
       }, 30000);
     }
   };
