@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react"; 
+import React, { useState, useMemo, useEffect, useCallback } from "react"; 
 import { 
     View, 
     Text, 
@@ -8,6 +8,7 @@ import {
     Image, 
     ActivityIndicator, 
     Modal, 
+    // Alert, ya no es necesario importarlo si usas CustomAlert
 } from "react-native";
 import * as ImagePicker from 'expo-image-picker'; 
 import CustomAlert from '../components/Alert'; 
@@ -21,6 +22,7 @@ import {
     updatePassword, 
     reauthenticateWithCredential, 
     EmailAuthProvider, 
+    AuthErrorCodes,
 } from "firebase/auth";
 import { 
     doc, 
@@ -35,14 +37,13 @@ import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view
 // ==========================================================
 // CONFIGURACIÓN DE CLOUDINARY (¡DEBES CAMBIAR ESTOS VALORES!)
 // ==========================================================
-// ⚠️ ¡IMPORTANTE! Revisa que estos valores sean correctos para tu cuenta de Cloudinary.
 const CLOUDINARY_CLOUD_NAME = 'dcambilud'; 
 const CLOUDINARY_UPLOAD_PRESET = 'consultorio_foto'; 
 const CLOUDINARY_API_KEY = '452396411417448';
 const DEFAULT_AVATAR = 'https://res.cloudinary.com/demo/image/upload/v1607552554/avatar_placeholder.png';
 
 // ==========================================================
-// FUNCIÓN AUXILIAR PARA PARSEAR EL NOMBRE COMPLETO
+// FUNCIONES AUXILIARES
 // ==========================================================
 const parseDisplayName = (displayName) => {
     if (!displayName) return ['', ''];
@@ -57,24 +58,453 @@ const parseDisplayName = (displayName) => {
     return [firstName, lastName];
 };
 
-// ==========================================================
-// FUNCIÓN AUXILIAR: Limpieza y Construcción de DisplayName
-// ==========================================================
 const cleanAndBuildDisplayName = (firstName, lastName) => {
     const rawDisplayName = `${firstName.trim()} ${lastName.trim()}`;
     return rawDisplayName.replace(/\s+/g, ' ').trim();
 };
 
-// ==========================================================
-// FUNCIONES DE LIMPIEZA DE DIRECCIÓN Y TELÉFONO
-// ==========================================================
-
 const cleanAddress = (text) => {
-    return text.replace(/[^a-zA-Z0-9ñÑáéíóúÁÉÍÓÚ\s]/g, '');
+    return text.replace(/[^a-zA-Z0-9ñÑáéíóúÁÉÍÓÚ\s,.-]/g, ''); 
 };
 
 const cleanPhone = (text) => {
-    return text.replace(/\D/g, '');
+    return text.replace(/\D/g, ''); 
+};
+
+const validateName = (text) => {
+    const nameRegex = /^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]*$/;
+    return nameRegex.test(text);
+};
+
+const validateEmail = (text) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(text);
+};
+
+
+// ==========================================================
+// COMPONENTES MODULARES
+// ==========================================================
+
+// Auxiliar: Validación de Contraseña
+const PasswordRequirementCheck = React.memo(({ meets, text }) => (
+    <View style={styles.passwordCheckRow}>
+        <FontAwesome
+            name="check"
+            size={14}
+            color={meets ? "#05f7c2" : "#ccc"}
+            style={styles.passwordCheckIcon}
+        />
+        <Text style={[
+            styles.passwordCheckText,
+            meets && styles.passwordCheckTextValid
+        ]}>
+            {text}
+        </Text>
+    </View>
+));
+
+// Auxiliar: Coincidencia de Contraseña
+const PasswordMatchInfo = React.memo(({ meets }) => (
+    <View style={styles.passwordMatchContainer}>
+        <FontAwesome
+            name={meets ? "check" : "times"}
+            size={14}
+            color={meets ? "#05f7c2" : "#ff6b6b"}
+            style={styles.passwordMatchIcon}
+        />
+        <Text style={[styles.passwordMatchText, { color: meets ? "#05f7c2" : "#ff6b6b" }]}>
+            {meets ? "Las contraseñas coinciden" : "Las contraseñas no coinciden"}
+        </Text>
+    </View>
+));
+
+
+// Componente de botón de acción modular
+const ActionButton = React.memo(({ isEditing, onEdit, onCancel, onSave, saveText, disabled, icon, text }) => {
+    const primaryColor = "#64bae8"; 
+    const cancelColor = "#ff6b6b"; 
+    const saveColor = "#05f7c2";
+
+    if (!isEditing) {
+        return (
+            <TouchableOpacity 
+                style={[styles.actionButton, { backgroundColor: primaryColor, width: '100%', marginTop: 15 }]}
+                onPress={onEdit}
+                disabled={disabled}
+            >
+                <FontAwesome 
+                    name={icon} 
+                    size={18} 
+                    color={"#fff"} 
+                    style={{ marginRight: 8 }}
+                />
+                <Text style={styles.actionButtonText}>
+                    {text}
+                </Text>
+            </TouchableOpacity>
+        );
+    }
+
+    return (
+        <View style={styles.actionButtonsContainer}>
+            <TouchableOpacity 
+                style={[styles.saveButton, { backgroundColor: saveColor, width: '48%', marginTop: 0 }]} 
+                onPress={onSave}
+                disabled={disabled}
+            >
+                <Text style={[styles.saveButtonText, { color: '#000' }]}>{saveText}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+                style={[styles.actionButton, { backgroundColor: cancelColor, width: '48%', marginTop: 0 }]}
+                onPress={onCancel}
+                disabled={disabled}
+            >
+                <FontAwesome 
+                    name={"times"} 
+                    size={18} 
+                    color={"#fff"} 
+                    style={{ marginRight: 8 }}
+                />
+                <Text style={styles.actionButtonText}>
+                    CANCELAR
+                </Text>
+            </TouchableOpacity>
+        </View>
+    );
+});
+
+
+// Tarjeta 1: Perfil Básico (Nombre, Apellido, Foto)
+const PerfilCard = React.memo((props) => {
+    const { 
+        firstName, setFirstName, firstNameError, 
+        lastName, setLastName, lastNameError, 
+        isEditingProfile, setIsEditingProfile, isLoadingImage,
+        isEditingContact, isChangingPassword,
+        profileImage, DEFAULT_AVATAR, handleAvatarPress,
+        handleFirstNameChange, handleLastNameChange,
+        showAlert, handleUpdateProfile, handleCancelEdit,
+    } = props;
+
+    return (
+        <View style={styles.card}>
+            <Text style={styles.cardTitle}>Perfil Básico</Text>
+            
+            {/* UI FOTO DE PERFIL */}
+            <View style={styles.avatarContainer}>
+                {isLoadingImage ? (
+                    <View style={[styles.avatar, styles.loadingOverlay]}>
+                        <ActivityIndicator size="large" color="#64bae8" />
+                        <Text style={styles.loadingText}>Subiendo...</Text>
+                    </View>
+                ) : (
+                    <Image
+                        source={{ uri: profileImage || DEFAULT_AVATAR }}
+                        style={styles.avatar}
+                    />
+                )}
+                
+                <TouchableOpacity
+                    style={styles.avatarEditButton}
+                    onPress={handleAvatarPress} 
+                    disabled={isLoadingImage || isEditingProfile || isEditingContact || isChangingPassword}
+                >
+                    <LinearGradient
+                        colors={["#64bae8", "#4a90e2"]}
+                        style={styles.avatarEditButtonGradient}
+                        start={{ x: 0, y: 0.5 }}
+                        end={{ x: 1, y: 0.5 }}
+                    >
+                        <FontAwesome name="camera" size={16} color="#fff" />
+                    </LinearGradient>
+                </TouchableOpacity>
+            </View>
+
+            {/* NOMBRE */}
+            <Text style={styles.label}>Nombre(s)</Text>
+            <View style={[styles.inputGroup, isEditingProfile && firstNameError && styles.inputGroupError]}>
+                <TextInput
+                key={isEditingProfile ? 'profile-name-edit' : 'profile-name-view'}
+                style={styles.input}
+                value={firstName}
+                onChangeText={handleFirstNameChange}
+                editable={isEditingProfile}
+                placeholder="Ingrese su nombre"
+                placeholderTextColor="#888"
+                />
+            </View>
+            {isEditingProfile && firstNameError && (
+                <Text style={styles.errorText}>El nombre solo debe contener letras</Text>
+            )}
+            
+            {/* APELLIDO */}
+            <Text style={styles.label}>Apellido(s)</Text>
+            <View style={[styles.inputGroup, isEditingProfile && lastNameError && styles.inputGroupError]}>
+                <TextInput
+                key={isEditingProfile ? 'profile-last-edit' : 'profile-last-view'}
+                style={styles.input}
+                value={lastName}
+                onChangeText={handleLastNameChange}
+                editable={isEditingProfile}
+                placeholder="Ingrese su apellido"
+                placeholderTextColor="#888"
+                />
+            </View>
+            {isEditingProfile && lastNameError && (
+                <Text style={styles.errorText}>El apellido solo debe contener letras</Text>
+            )}
+
+            {/* BOTÓN EDITAR/GUARDAR/CANCELAR */}
+            <ActionButton 
+                isEditing={isEditingProfile}
+                onEdit={() => {
+                    if(isEditingContact || isChangingPassword) {
+                        showAlert("info", "Edición en Curso", "Termina o cancela la edición en otra sección primero.");
+                        return;
+                    }
+                    setIsEditingProfile(true);
+                }}
+                onCancel={() => handleCancelEdit('profile')}
+                onSave={handleUpdateProfile}
+                saveText="GUARDAR PERFIL"
+                disabled={isLoadingImage || isEditingContact || isChangingPassword}
+                icon="pencil"
+                text="EDITAR PERFIL"
+            />
+
+        </View>
+    );
+});
+
+
+// Tarjeta 2: Información de Contacto (Email, Dirección, Teléfono)
+const ContactoCard = React.memo((props) => {
+    const {
+        email, handleEmailChange, emailError,
+        address, setAddress, 
+        phone, setPhone,
+        isEditingContact, setIsEditingContact,
+        isEditingProfile, isChangingPassword,
+        showAlert, handleUpdateContact, handleCancelEdit,
+    } = props;
+    
+    return (
+        <View style={styles.card}>
+            <Text style={styles.cardTitle}>Información de Contacto</Text>
+            
+            {/* CORREO */}
+            <Text style={styles.label}>Correo Electrónico</Text>
+            <View style={[styles.inputGroup, isEditingContact && emailError && styles.inputGroupError]}>
+                <TextInput
+                key={isEditingContact ? 'contact-email-edit' : 'contact-email-view'}
+                style={styles.input}
+                value={email}
+                onChangeText={handleEmailChange}
+                editable={isEditingContact}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                placeholder="Correo"
+                placeholderTextColor="#888"
+                />
+            </View>
+            {isEditingContact && emailError && (
+                <Text style={styles.errorText}>Formato de correo inválido</Text>
+            )}
+            
+            {/* DIRECCIÓN */}
+            <Text style={styles.label}>Dirección</Text>
+            <View style={styles.inputGroup}>
+                <TextInput
+                    key={isEditingContact ? 'contact-address-edit' : 'contact-address-view'}
+                    style={styles.input}
+                    placeholder="Calle, número, ciudad, etc."
+                    placeholderTextColor="#888"
+                    value={address}
+                    onChangeText={text => setAddress(cleanAddress(text))}
+                    editable={isEditingContact}
+                />
+            </View>
+
+            {/* TELÉFONO */}
+            <Text style={styles.label}>Teléfono</Text>
+            <View style={styles.inputGroup}>
+                <TextInput
+                    key={isEditingContact ? 'contact-phone-edit' : 'contact-phone-view'}
+                    style={styles.input}
+                    placeholder="Número de teléfono"
+                    placeholderTextColor="#888"
+                    value={phone}
+                    keyboardType="numeric" 
+                    onChangeText={text => setPhone(cleanPhone(text))}
+                    editable={isEditingContact}
+                    maxLength={15}
+                />
+            </View>
+
+            {/* BOTÓN EDITAR/GUARDAR/CANCELAR */}
+            <ActionButton 
+                isEditing={isEditingContact}
+                onEdit={() => {
+                    if(isEditingProfile || isChangingPassword) {
+                        showAlert("info", "Edición en Curso", "Termina o cancela la edición en otra sección primero.");
+                        return;
+                    }
+                    setIsEditingContact(true);
+                }}
+                onCancel={() => handleCancelEdit('contact')}
+                onSave={handleUpdateContact}
+                saveText="GUARDAR CONTACTO"
+                disabled={isEditingProfile || isChangingPassword}
+                icon="envelope"
+                text="EDITAR CONTACTO"
+            />
+        </View>
+    );
+});
+
+
+// Tarjeta 3: Cambio de Contraseña (SIN MEMOIZAR para forzar re-renderización del error)
+const PasswordCard = (props) => { 
+    const {
+        isChangingPassword, setIsChangingPassword, isEditingProfile, isEditingContact,
+        currentPassword, setCurrentPassword, currentPasswordError, setCurrentPasswordError,
+        newPassword, setNewPassword, confirmNewPassword, setConfirmNewPassword,
+        showCurrentPassword, setShowCurrentPassword, showNewPassword, setShowNewPassword, showConfirmNewPassword, setShowConfirmNewPassword,
+        showPasswordInfo, setShowPasswordInfo, showPasswordMatchInfo, setShowPasswordMatchInfo,
+        passwordChecks, passwordsMatch,
+        showAlert, handleChangePassword, handleCancelEdit,
+    } = props;
+
+    return (
+        <View style={styles.card}>
+            <Text style={styles.cardTitle}>Seguridad y Contraseña</Text>
+
+            {/* VISTA DE SOLO LECTURA */}
+            {!isChangingPassword ? (
+                <TouchableOpacity 
+                    style={[styles.actionButton, { backgroundColor: "#64bae8", width: '100%', marginTop: 10 }]}
+                    onPress={() => {
+                        if(isEditingProfile || isEditingContact) {
+                            showAlert("info", "Edición en Curso", "Termina o cancela la edición en otra sección primero.");
+                            return;
+                        }
+                        // Limpiamos el error al entrar a cambiar contraseña
+                        setCurrentPasswordError(false); 
+                        setIsChangingPassword(true);
+                    }}
+                    disabled={isEditingProfile || isEditingContact}
+                >
+                    <FontAwesome 
+                        name="lock" 
+                        size={18} 
+                        color={"#fff"} 
+                        style={{ marginRight: 8 }}
+                    />
+                    <Text style={styles.actionButtonText}>
+                        CAMBIAR CONTRASEÑA
+                    </Text>
+                </TouchableOpacity>
+            ) : (
+                <>
+                    {/* CONTRASEÑA ACTUAL */}
+                    <Text style={styles.label}>Contraseña Actual</Text>
+                    <View style={[styles.inputGroup, currentPasswordError && styles.inputGroupError]}>
+                        <TextInput
+                            key={'password-current-edit'}
+                            style={styles.input}
+                            placeholder="Contraseña Actual"
+                            value={currentPassword}
+                            onChangeText={setCurrentPassword}
+                            secureTextEntry={!showCurrentPassword}
+                            placeholderTextColor="#888"
+                        />
+                        <TouchableOpacity onPress={() => setShowCurrentPassword(!showCurrentPassword)} style={styles.eyeButton}>
+                            <FontAwesome name={showCurrentPassword ? "eye-slash" : "eye"} size={18} color="#555" />
+                        </TouchableOpacity>
+                    </View>
+                    {currentPasswordError && (
+                        <Text style={styles.errorText}>La contraseña actual no es correcta</Text>
+                    )}
+
+                    {/* NUEVA CONTRASEÑA */}
+                    <Text style={styles.label}>Nueva Contraseña</Text>
+                    <View style={styles.inputGroup}>
+                        <TextInput
+                            key={'password-new-edit'}
+                            style={styles.input}
+                            placeholder="Nueva Contraseña"
+                            value={newPassword}
+                            onChangeText={setNewPassword}
+                            secureTextEntry={!showNewPassword}
+                            onFocus={() => setShowPasswordInfo(true)}
+                            onBlur={() => setShowPasswordInfo(false)}
+                            placeholderTextColor="#888"
+                        />
+                        <TouchableOpacity onPress={() => setShowNewPassword(!showNewPassword)} style={styles.eyeButton}>
+                            <FontAwesome name={showNewPassword ? "eye-slash" : "eye"} size={18} color="#555" />
+                        </TouchableOpacity>
+                    </View>
+                    
+                    {showPasswordInfo && (
+                        <View style={styles.passwordCard}>
+                            <Text style={styles.passwordCardTitle}>Requisitos de la nueva contraseña:</Text>
+                            <PasswordRequirementCheck meets={passwordChecks.hasMinLength} text="Mínimo 6 caracteres" />
+                            <PasswordRequirementCheck meets={passwordChecks.hasCase} text="Al menos una letra minúscula" />
+                            <PasswordRequirementCheck meets={passwordChecks.hasUppercase} text="Al menos una letra mayúscula" />
+                            <PasswordRequirementCheck meets={passwordChecks.hasNumber} text="Al menos un número" />
+                        </View>
+                    )}
+
+                    <Text style={styles.label}>Confirmar Nueva Contraseña</Text>
+                    <View style={styles.inputGroup}>
+                        <TextInput
+                            key={'password-confirm-edit'}
+                            style={styles.input}
+                            placeholder="Confirme la nueva contraseña"
+                            value={confirmNewPassword}
+                            onChangeText={setConfirmNewPassword}
+                            secureTextEntry={!showConfirmNewPassword}
+                            onFocus={() => setShowPasswordMatchInfo(true)}
+                            onBlur={() => setShowPasswordMatchInfo(false)}
+                            placeholderTextColor="#888"
+                        />
+                        <TouchableOpacity onPress={() => setShowConfirmNewPassword(!showConfirmNewPassword)} style={styles.eyeButton}>
+                            <FontAwesome name={showConfirmNewPassword ? "eye-slash" : "eye"} size={18} color="#555" />
+                        </TouchableOpacity>
+                    </View>
+                    
+                    {showPasswordMatchInfo && (confirmNewPassword.length > 0) && (
+                        <PasswordMatchInfo meets={passwordsMatch} /> 
+                    )}
+                    
+                    {/* BOTONES DE GUARDAR/CANCELAR CONTRASEÑA */}
+                    <View style={styles.actionButtonsContainer}>
+                        <TouchableOpacity 
+                            style={[styles.saveButton, { backgroundColor: '#05f7c2', width: '48%', marginTop: 15 }]} 
+                            onPress={handleChangePassword}
+                        >
+                            <Text style={[styles.saveButtonText, {color: '#000'}]}>GUARDAR</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity 
+                            style={[styles.actionButton, { backgroundColor: "#ff6b6b", width: '48%', marginTop: 15 }]}
+                            onPress={() => handleCancelEdit('password')}
+                        >
+                            <FontAwesome 
+                                name="times" 
+                                size={18} 
+                                color={"#fff"} 
+                                style={{ marginRight: 8 }}
+                            />
+                            <Text style={styles.actionButtonText}>
+                                CANCELAR
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
+                </>
+            )}
+        </View>
+    );
 };
 
 
@@ -85,9 +515,7 @@ export default function Perfil({ navigation }) {
     
     const user = auth.currentUser;
   
-    // ==========================================================
     // 1. ESTADOS
-    // ==========================================================
     const [isDataLoaded, setIsDataLoaded] = useState(false);
 
     // Estados de datos
@@ -95,15 +523,13 @@ export default function Perfil({ navigation }) {
     const [lastName, setLastName] = useState('');
     const [email, setEmail] = useState(user?.email || '');
     const [profileImage, setProfileImage] = useState(user?.photoURL || null); 
-
-    // Estado para la carga de la imagen
-    const [isLoadingImage, setIsLoadingImage] = useState(false); // <--- NUEVO ESTADO DE CARGA
-    
-    // Nuevos estados para dirección y teléfono
     const [address, setAddress] = useState(''); 
     const [phone, setPhone] = useState(''); 
     
-    // Estado para guardar los datos originales
+    // Estado para la carga de la imagen
+    const [isLoadingImage, setIsLoadingImage] = useState(false); 
+    
+    // Estado para guardar los datos originales (para cancelación)
     const [originalData, setOriginalData] = useState({ 
         firstName: '', 
         lastName: '', 
@@ -113,8 +539,9 @@ export default function Perfil({ navigation }) {
         phone: '', 
     });
     
-    // Estados de la UI
-    const [isEditing, setIsEditing] = useState(false);
+    // ESTADOS DE EDICIÓN MODULAR
+    const [isEditingProfile, setIsEditingProfile] = useState(false); 
+    const [isEditingContact, setIsEditingContact] = useState(false); 
     const [isChangingPassword, setIsChangingPassword] = useState(false); 
     
     const [showImageSourceOptions, setShowImageSourceOptions] = useState(false); 
@@ -144,106 +571,96 @@ export default function Perfil({ navigation }) {
         isConfirmation: false,
     });
     
-    // ==========================================================
-    // 2. EFECTOS
-    // ==========================================================
-    useEffect(() => {
-        const fetchUserData = async () => {
-            if (!user) {
-                setIsDataLoaded(true); 
-                return;
-            }
+    // 2. EFECTOS (CARGA INICIAL DE DATOS)
+    const fetchUserData = useCallback(async () => {
+        if (!user) {
+            setIsDataLoaded(true); 
+            return;
+        }
 
-            let loadedFirstName, loadedLastName, loadedEmail, loadedPhotoURL, loadedAddress, loadedPhone;
+        let loadedFirstName, loadedLastName, loadedEmail, loadedPhotoURL, loadedAddress, loadedPhone;
 
-            try {
-                const userDocRef = doc(db, "users", user.uid);
-                const userDoc = await getDoc(userDocRef);
+        try {
+            const userDocRef = doc(db, "users", user.uid);
+            const userDoc = await getDoc(userDocRef);
 
-                if (userDoc.exists()) {
-                    // 1. Datos cargados desde Firestore (prioridad)
-                    const data = userDoc.data();
-                    loadedFirstName = data.firstName || '';
-                    loadedLastName = data.lastName || '';
-                    loadedEmail = data.email || user.email; 
-                    loadedAddress = data.address || '';
-                    loadedPhone = data.phone ? cleanPhone(data.phone) : ''; 
-                    
-                } else {
-                    // 2. Fallback a Auth
-                    const [authFirstName, authLastName] = parseDisplayName(user.displayName);
-                    loadedFirstName = authFirstName;
-                    loadedLastName = authLastName;
-                    loadedEmail = user.email;
-                    loadedAddress = '';
-                    loadedPhone = '';
-
-                    // Opcional: Crear el documento de Firestore para el usuario legado
-                    if (loadedFirstName || loadedLastName) {
-                        await setDoc(userDocRef, {
-                            firstName: loadedFirstName,
-                            lastName: loadedLastName,
-                            email: loadedEmail,
-                            address: loadedAddress, 
-                            phone: loadedPhone,     
-                        }, { merge: true }); 
-                    }
-                }
+            if (userDoc.exists()) {
+                const data = userDoc.data();
+                loadedFirstName = data.firstName || '';
+                loadedLastName = data.lastName || '';
+                loadedEmail = data.email || user.email; 
+                loadedAddress = data.address || '';
+                loadedPhone = data.phone ? cleanPhone(data.phone) : ''; 
                 
-                loadedPhotoURL = user.photoURL || null;
-
-                // Establecer estados del formulario
-                setFirstName(loadedFirstName);
-                setLastName(loadedLastName);
-                setEmail(loadedEmail);
-                setProfileImage(loadedPhotoURL); 
-                setAddress(loadedAddress);
-                setPhone(loadedPhone);
-
-                // Establecer datos originales para cancelación/comparación
-                setOriginalData({ 
-                    firstName: loadedFirstName, 
-                    lastName: loadedLastName, 
-                    email: loadedEmail, 
-                    photoURL: loadedPhotoURL,
-                    address: loadedAddress,
-                    phone: loadedPhone,
-                });
-
-            } catch (error) {
-                console.error("Error al cargar datos de Firestore:", error);
-                
+            } else {
                 const [authFirstName, authLastName] = parseDisplayName(user.displayName);
                 loadedFirstName = authFirstName;
                 loadedLastName = authLastName;
-                
-                setFirstName(loadedFirstName);
-                setLastName(loadedLastName);
-                setEmail(user.email || '');
-                setProfileImage(user.photoURL || null);
-                setAddress('');
-                setPhone('');
-                
-                setOriginalData({ 
-                    firstName: loadedFirstName, 
-                    lastName: loadedLastName, 
-                    email: user.email || '', 
-                    photoURL: user.photoURL || null,
-                    address: '',
-                    phone: '',
-                });
-            } finally {
-                setIsDataLoaded(true);
+                loadedEmail = user.email;
+                loadedAddress = '';
+                loadedPhone = '';
+
+                if (loadedFirstName || loadedLastName) {
+                    await setDoc(userDocRef, {
+                        firstName: loadedFirstName,
+                        lastName: loadedLastName,
+                        email: loadedEmail,
+                        address: loadedAddress, 
+                        phone: loadedPhone,     
+                    }, { merge: true }); 
+                }
             }
-        };
+            
+            loadedPhotoURL = user.photoURL || null;
 
+            setFirstName(loadedFirstName);
+            setLastName(loadedLastName);
+            setEmail(loadedEmail);
+            setProfileImage(loadedPhotoURL); 
+            setAddress(loadedAddress);
+            setPhone(loadedPhone);
+
+            setOriginalData({ 
+                firstName: loadedFirstName, 
+                lastName: loadedLastName, 
+                email: loadedEmail, 
+                photoURL: loadedPhotoURL,
+                address: loadedAddress,
+                phone: loadedPhone,
+            });
+
+        } catch (error) {
+            console.error("Error al cargar datos de Firestore:", error);
+            
+            const [authFirstName, authLastName] = parseDisplayName(user.displayName);
+            loadedFirstName = authFirstName;
+            loadedLastName = authLastName;
+            
+            setFirstName(loadedFirstName);
+            setLastName(loadedLastName);
+            setEmail(user.email || '');
+            setProfileImage(user.photoURL || null);
+            setAddress('');
+            setPhone('');
+            
+            setOriginalData({ 
+                firstName: loadedFirstName, 
+                lastName: loadedLastName, 
+                email: user.email || '', 
+                photoURL: user.photoURL || null,
+                address: '',
+                phone: '',
+            });
+        } finally {
+            setIsDataLoaded(true);
+        }
+    }, [user]);
+
+    useEffect(() => {
         fetchUserData();
-    }, [user]); 
+    }, [fetchUserData]); 
     
-    // ==========================================================
     // 3. MEMORIZACIÓN (VALIDACIÓN DE CONTRASEÑA)
-    // ==========================================================
-
     const passwordChecks = useMemo(() => ({
         hasCase: /[a-z]/.test(newPassword),
         hasUppercase: /[A-Z]/.test(newPassword),
@@ -259,54 +676,37 @@ export default function Perfil({ navigation }) {
         return Object.values(passwordChecks).every(check => check) && passwordsMatch;
     }, [passwordChecks, passwordsMatch]);
 
-    // ==========================================================
-    // 4. FUNCIONES DE MANEJO
-    // ==========================================================
+    // 4. FUNCIONES DE MANEJO Y AUXILIARES (USANDO useCALLBACK)
 
-    const validateName = (text) => {
-        const nameRegex = /^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]*$/;
-        return nameRegex.test(text);
-    };
-  
-    const validateEmail = (text) => {
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        return emailRegex.test(text);
-    };
-
-    const showAlert = (type, title, message, isConfirmation = false) => {
+    const showAlert = useCallback((type, title, message, isConfirmation = false) => {
         setAlertConfig({ visible: true, type, title, message, isConfirmation });
-    };
+    }, []);
 
-    const handleCloseAlert = () => {
+    const handleCloseAlert = useCallback(() => {
         setAlertConfig({ ...alertConfig, visible: false });
-    };
+    }, [alertConfig]);
     
-    const handleAvatarPress = () => {
-        // Abre el Modal/Menú de opciones de imagen (Cámara/Galería)
+    const handleAvatarPress = useCallback(() => {
+        if(isEditingProfile || isEditingContact || isChangingPassword) {
+            showAlert("info", "Edición en Curso", "Termina o cancela la edición en curso antes de cambiar la foto.");
+            return;
+        }
         setShowImageSourceOptions(true);
-    };
+    }, [isEditingProfile, isEditingContact, isChangingPassword, showAlert]);
 
-    /**
-     * @description Función para subir la imagen a Cloudinary.
-     */
     const uploadImageToCloudinary = async (uri) => {
-        // Crear el objeto FormData para el envío
         const data = new FormData();
-        // Generar un nombre de archivo único
         data.append('file', { 
             uri, 
             name: `profile_${user.uid}_${Date.now()}.jpg`, 
             type: 'image/jpeg' 
         });
-        // Credenciales de Cloudinary
         data.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
         data.append('cloud_name', CLOUDINARY_CLOUD_NAME);
         
-        // Ejecutar la petición POST
         const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, {
             method: 'POST',
             body: data,
-            // Cloudinary no requiere headers para el Content-Type de FormData
         });
 
         if (!response.ok) {
@@ -318,27 +718,20 @@ export default function Perfil({ navigation }) {
         return result.secure_url;
     };
 
-
-    /**
-     * @description Función que gestiona la selección y la subida de la imagen.
-     */
-    const uploadImage = async (uri) => {
+    const uploadImage = useCallback(async (uri) => {
         if (!user) {
             showAlert("error", "Error", "No hay usuario autenticado.");
             return;
         }
 
-        setIsLoadingImage(true); // Iniciar la carga
+        setIsLoadingImage(true); 
 
         try {
-            // PASO 1: Subir a Cloudinary
             const cloudinaryUrl = await uploadImageToCloudinary(uri);
             
             if (cloudinaryUrl) {
-                // PASO 2: Actualizar la URL en Firebase Auth
                 await updateProfile(user, { photoURL: cloudinaryUrl });
                 
-                // PASO 3: Actualizar estados locales y originales
                 setProfileImage(cloudinaryUrl);
                 setOriginalData(prev => ({ ...prev, photoURL: cloudinaryUrl }));
                 
@@ -349,19 +742,17 @@ export default function Perfil({ navigation }) {
         } catch (error) {
             console.error("Error al subir imagen:", error);
             
-            // Mensaje de error más específico
             const userError = error.message.includes("Cloudinary upload failed") 
                 ? "Fallo en la subida a Cloudinary. Revisa tu PRESET y Cloud Name en el código." 
                 : "Fallo al subir la imagen de perfil. Inténtalo de nuevo.";
             
             showAlert("error", "Error", userError);
         } finally {
-            setIsLoadingImage(false); // Detener la carga
+            setIsLoadingImage(false); 
         }
-    };
-    
-    // Lógica para seleccionar la imagen
-    const pickImage = async (source) => {
+    }, [user, showAlert]);
+
+    const pickImage = useCallback(async (source) => {
         setShowImageSourceOptions(false); 
         
         let result;
@@ -395,23 +786,32 @@ export default function Perfil({ navigation }) {
         if (!result.canceled) {
             uploadImage(result.assets[0].uri);
         }
-    };
+    }, [showAlert, uploadImage]);
 
 
-    const handleUpdateProfile = async () => {
-        if (!user) {
-            showAlert("error", "Error", "No hay usuario autenticado.");
-            return;
-        }
+    const handleFirstNameChange = useCallback((text) => {
+        const filteredText = text.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]/g, ''); 
+        setFirstName(filteredText);
+        setFirstNameError(filteredText.length > 0 && !validateName(filteredText));
+    }, []); 
+
+    const handleLastNameChange = useCallback((text) => {
+        const filteredText = text.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]/g, ''); 
+        setLastName(filteredText);
+        setLastNameError(filteredText.length > 0 && !validateName(filteredText));
+    }, []);
+    
+    const handleEmailChange = useCallback((text) => {
+        setEmail(text);
+        setEmailError(text.length > 0 && !validateEmail(text));
+    }, []);
+
+
+    const handleUpdateProfile = useCallback(async () => {
+        if (!user) return showAlert("error", "Error", "No hay usuario autenticado.");
         
-        if (isChangingPassword) {
-            handleChangePassword();
-            return;
-        }
-
         let hasError = false;
 
-        // Validación de campos
         if (!firstName.trim() || !lastName.trim()) {
             showAlert("error", "Error", "El nombre y apellido son obligatorios.");
             hasError = true;
@@ -420,6 +820,63 @@ export default function Perfil({ navigation }) {
             showAlert("error", "Error", "El nombre o apellido contienen caracteres no válidos.");
             hasError = true;
         }
+        
+        if (hasError) return;
+
+        try {
+            const trimmedFirstName = firstName.trim();
+            const trimmedLastName = lastName.trim();
+            const newDisplayName = cleanAndBuildDisplayName(trimmedFirstName, trimmedLastName); 
+
+            let authProfileUpdated = false;
+            let firestoreUpdated = false;
+            
+            if (user.displayName !== newDisplayName) {
+                await updateProfile(user, { displayName: newDisplayName });
+                authProfileUpdated = true;
+            }
+
+            const userDocRef = doc(db, "users", user.uid);
+            
+            if (originalData.firstName !== trimmedFirstName || 
+                originalData.lastName !== trimmedLastName
+            ) {
+                await updateDoc(userDocRef, {
+                    firstName: trimmedFirstName,
+                    lastName: trimmedLastName,
+                }, { merge: true });
+                firestoreUpdated = true;
+            }
+            
+            const profileUpdated = authProfileUpdated || firestoreUpdated;
+            
+            if (profileUpdated) {
+                setOriginalData(prev => ({ 
+                    ...prev, 
+                    firstName: trimmedFirstName, 
+                    lastName: trimmedLastName, 
+                }));
+                showAlert("success", "Éxito", "Perfil actualizado correctamente.");
+            } else {
+                showAlert("info", "Información", "No se detectaron cambios para guardar.");
+            }
+            
+            setIsEditingProfile(false); 
+
+        } catch (error) {
+            console.error("Firebase update error (Profile):", error);
+            showAlert("error", "Error", "Hubo un problema al actualizar el perfil.");
+        }
+    }, [user, firstName, lastName, firstNameError, lastNameError, originalData.firstName, originalData.lastName, showAlert]);
+
+    const handleUpdateContact = useCallback(async () => {
+        if (!user) return showAlert("error", "Error", "No hay usuario autenticado.");
+        
+        let hasError = false;
+        
+        const trimmedAddress = cleanAddress(address);
+        const trimmedPhone = cleanPhone(phone);
+        
         if (!validateEmail(email)) {
             setEmailError(true);
             showAlert("error", "Error", "El formato del correo electrónico no es válido.");
@@ -431,58 +888,33 @@ export default function Perfil({ navigation }) {
         if (hasError) return;
 
         try {
-            const trimmedFirstName = firstName.trim();
-            const trimmedLastName = lastName.trim();
-
-            const trimmedAddress = cleanAddress(address);
-            const trimmedPhone = cleanPhone(phone);
-
-            const newDisplayName = cleanAndBuildDisplayName(trimmedFirstName, trimmedLastName); 
-
-            let authProfileUpdated = false;
-            let firestoreUpdated = false;
             let emailUpdated = false;
-
-            // 2. Actualizar displayName de Auth 
-            if (user.displayName !== newDisplayName) {
-                await updateProfile(user, { displayName: newDisplayName });
-                authProfileUpdated = true;
-            }
-
-            // 3. Actualizar email de Auth 
+            let firestoreUpdated = false;
+            
             if (user.email !== email) {
                 await updateEmail(user, email); 
                 emailUpdated = true;
             }
 
-            // 4. ACTUALIZAR LOS DATOS SEPARADOS EN FIRESTORE
             const userDocRef = doc(db, "users", user.uid);
             
-            // Comprobar si hay cambios en los campos de Firestore
-            if (originalData.firstName !== trimmedFirstName || 
-                originalData.lastName !== trimmedLastName || 
-                originalData.email !== email ||
+            if (originalData.email !== email ||
                 originalData.address !== trimmedAddress ||
                 originalData.phone !== trimmedPhone 
             ) {
                 await updateDoc(userDocRef, {
-                    firstName: trimmedFirstName,
-                    lastName: trimmedLastName,
                     email: email,
                     address: trimmedAddress,
                     phone: trimmedPhone,
-                });
+                }, { merge: true });
                 firestoreUpdated = true;
             }
             
-            const profileUpdated = authProfileUpdated || emailUpdated || firestoreUpdated;
+            const contactUpdated = emailUpdated || firestoreUpdated;
             
-            if (profileUpdated) {
-                // Actualizar los datos originales con los nuevos valores
+            if (contactUpdated) {
                 setOriginalData(prev => ({ 
                     ...prev, 
-                    firstName: trimmedFirstName, 
-                    lastName: trimmedLastName, 
                     email: email,
                     address: trimmedAddress,
                     phone: trimmedPhone,
@@ -491,99 +923,85 @@ export default function Perfil({ navigation }) {
                 setAddress(trimmedAddress);
                 setPhone(trimmedPhone);
                 
-                showAlert("success", "Éxito", "Perfil actualizado correctamente.");
+                showAlert("success", "Éxito", "Datos de contacto actualizados correctamente.");
             } else {
-                showAlert("info", "Información", "No se detectaron cambios para guardar.");
+                showAlert("info", "Información", "No se detectaron cambios de contacto para guardar.");
             }
             
-            setIsEditing(false); 
+            setIsEditingContact(false); 
 
         } catch (error) {
-            let errorMessage = "Hubo un problema al actualizar el perfil.";
+            let errorMessage = "Hubo un problema al actualizar el contacto.";
             switch (error.code) {
-                case 'auth/requires-recent-login':
+                case AuthErrorCodes.REQUIRES_RECENT_LOGIN:
                     errorMessage = "Esta acción (cambio de email) requiere que inicies sesión nuevamente para verificar tu identidad.";
                     break;
-                case 'auth/email-already-in-use':
+                case AuthErrorCodes.EMAIL_ALREADY_IN_USE:
                     errorMessage = "El nuevo correo electrónico ya está en uso por otra cuenta.";
                     break;
-                case 'auth/invalid-email':
+                case AuthErrorCodes.INVALID_EMAIL:
                     errorMessage = "El nuevo formato de correo electrónico no es válido.";
                     break;
                 default:
-                    console.error("Firebase update error:", error);
-                    if (error.message.includes('slashes')) {
-                        errorMessage = "Error de nombre en Auth. Por favor, pulsa 'Guardar Cambios' de nuevo."
-                    } else {
-                        errorMessage = error.message || errorMessage;
-                    }
+                    console.error("Firebase contact update error:", error);
+                    errorMessage = error.message || errorMessage;
                     break;
             }
             showAlert("error", "Error", errorMessage);
         }
-    };
+    }, [user, email, address, phone, originalData.email, originalData.address, originalData.phone, showAlert]);
 
-    const handleCancelEdit = () => {
-        setFirstName(originalData.firstName);
-        setLastName(originalData.lastName);
-        setEmail(originalData.email);
-        setProfileImage(originalData.photoURL); 
-        setAddress(originalData.address);
-        setPhone(originalData.phone);
 
-        setCurrentPassword('');
-        setNewPassword('');
-        setConfirmNewPassword('');
-        setCurrentPasswordError(false);
-
-        setFirstNameError(false);
-        setLastNameError(false);
-        setEmailError(false);
-        
-        setIsChangingPassword(false);
-        setIsEditing(false);
-    };
+    const handleCancelEdit = useCallback((cardType) => {
+        if (cardType === 'profile') {
+            setFirstName(originalData.firstName);
+            setLastName(originalData.lastName);
+            setFirstNameError(false);
+            setLastNameError(false);
+            setIsEditingProfile(false);
+        } else if (cardType === 'contact') {
+            setEmail(originalData.email);
+            setAddress(originalData.address);
+            setPhone(originalData.phone);
+            setEmailError(false);
+            setIsEditingContact(false);
+        } else if (cardType === 'password') {
+            setCurrentPassword('');
+            setNewPassword('');
+            setConfirmNewPassword('');
+            setCurrentPasswordError(false);
+            setIsChangingPassword(false);
+        }
+    }, [originalData]);
   
-    const handleFirstNameChange = (text) => {
-        const filteredText = text.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]/g, ''); 
-        setFirstName(filteredText);
-        setFirstNameError(filteredText && !validateName(filteredText));
-    };
-
-    const handleLastNameChange = (text) => {
-        const filteredText = text.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]/g, ''); 
-        setLastName(filteredText);
-        setLastNameError(filteredText && !validateName(filteredText));
-    };
-    
-    const handleEmailChange = (text) => {
-        setEmail(text);
-        setEmailError(text && !validateEmail(text));
-    };
-  
-    const handleConfirmLogout = async () => {
+    const handleConfirmLogout = useCallback(async () => {
         handleCloseAlert();
         try {
             await auth.signOut();
         } catch (error) {
             showAlert("error", "Error", "No se pudo cerrar la sesión. Inténtalo de nuevo.", false);
         }
-    };
+    }, [handleCloseAlert, showAlert]);
 
-    const handleLogout = () => {
+    const handleLogout = useCallback(() => {
+        if(isEditingProfile || isEditingContact || isChangingPassword) {
+            showAlert("info", "Edición en Curso", "Termina o cancela la edición en curso antes de cerrar sesión.");
+            return;
+        }
+
         showAlert(
             "error", 
             "Cerrar Sesión", 
             "¿Estás seguro de que deseas cerrar tu sesión actual?",
             true 
         );
-    };
-  
-    const handleChangePassword = async () => {
-        if (!user) {
-            showAlert("error", "Error", "No hay usuario autenticado.");
-            return;
-        }
+    }, [isEditingProfile, isEditingContact, isChangingPassword, showAlert]);
+
+    /**
+     * @description Maneja la actualización de la Tarjeta 3 (Contraseña) - Lógica de error robusta
+     */
+    const handleChangePassword = useCallback(async () => {
+        if (!user) return showAlert("error", "Error", "No hay usuario autenticado.");
         
         if (!currentPassword || !newPassword || !confirmNewPassword) {
             showAlert("error", "Error", "Todos los campos de contraseña son obligatorios.");
@@ -609,24 +1027,55 @@ export default function Perfil({ navigation }) {
             return;
         }
         
+        // 1. Reset error state BEFORE any async operation 
+        setCurrentPasswordError(false); 
+
         try {
+            // PASO 1: Re-autenticación
             const credential = EmailAuthProvider.credential(user.email, currentPassword);
             await reauthenticateWithCredential(user, credential);
-            setCurrentPasswordError(false);
+            
         } catch (error) {
+            // Manejo del error
+            
+            // 1. ERROR DE CONTRASEÑA INCORRECTA
             if (error.code === 'auth/wrong-password') {
-                setCurrentPasswordError(true);
+                
+                setCurrentPasswordError(true); 
+                // setCurrentPassword(''); 
+                // setNewPassword('');
+                // setConfirmNewPassword('');
+
                 showAlert("error", "Error", "La contraseña actual es incorrecta.");
-            } else {
-                console.error("Re-authentication error:", error);
-                showAlert("error", "Error", "Falló la re-autenticación. Inténtalo de nuevo.");
+                return; 
+            } 
+            
+            // 2. ERROR DE DEMASIADOS INTENTOS (TOO MANY REQUESTS)
+            else if (error.code === 'auth/too-many-requests') { 
+                
+                setCurrentPasswordError(true); 
+                // setCurrentPassword(''); 
+                // setNewPassword('');
+                // setConfirmNewPassword('');
+
+                showAlert("error", "Alerta de Seguridad", "Demasiados intentos fallidos. Por favor, espera unos minutos antes de volver a intentar.");
+                return; 
             }
-            return;
+            
+            // 3. OTROS ERRORES
+            else {
+                console.error("Re-authentication error:", error);
+                showAlert("error", "Error", "Falló la re-autenticación por un motivo desconocido. Inténtalo de nuevo.");
+                return; 
+            }
         }
         
+        // Si llegamos aquí, la re-autenticación fue exitosa
         try {
+            // PASO 2: Actualizar contraseña
             await updatePassword(user, newPassword);
             
+            // Limpieza y éxito
             setCurrentPassword('');
             setNewPassword('');
             setConfirmNewPassword('');
@@ -636,18 +1085,15 @@ export default function Perfil({ navigation }) {
             
         } catch (error) {
             let errorMessage = "Hubo un problema al actualizar la contraseña.";
-            if (error.code === 'auth/weak-password') {
+            if (error.code === AuthErrorCodes.WEAK_PASSWORD) {
                 errorMessage = "La nueva contraseña es demasiado débil.";
             }
             console.error("Update password error:", error);
             showAlert("error", "Error", errorMessage);
         }
-    };
+    }, [user, currentPassword, newPassword, confirmNewPassword, isPasswordValid, showAlert, setIsChangingPassword, setNewPassword, setConfirmNewPassword, setCurrentPassword, setCurrentPasswordError]);
 
-    // ==========================================================
     // 5. RENDERIZADO CONDICIONAL DE CARGA
-    // ==========================================================
-    
     if (!isDataLoaded) {
         return (
             <LinearGradient colors={["#FFFFFF", "#9FE2CF"]} style={styles.container}>
@@ -657,303 +1103,99 @@ export default function Perfil({ navigation }) {
         );
     }
     
-    // ==========================================================
-    // 6. COMPONENTES AUXILIARES Y RENDERIZADO FINAL
-    // ==========================================================
-    
-    const PasswordMatchInfo = ({ meets }) => (
-        <View style={styles.passwordMatchContainer}>
-        <FontAwesome
-            name={meets ? "check" : "times"}
-            size={14}
-            color={meets ? "#05f7c2" : "#ff6b6b"}
-            style={styles.passwordMatchIcon}
-        />
-        <Text style={[styles.passwordMatchText, { color: meets ? "#05f7c2" : "#ff6b6b" }]}>
-            {meets ? "Las contraseñas coinciden" : "Las contraseñas no coinciden"}
-        </Text>
-        </View>
-    );
-
-    const PasswordRequirementCheck = ({ meets, text }) => (
-        <View style={styles.passwordCheckRow}>
-            <FontAwesome
-                name="check"
-                size={14}
-                color={meets ? "#05f7c2" : "#ccc"}
-                style={styles.passwordCheckIcon}
-            />
-            <Text style={[
-                styles.passwordCheckText,
-                meets && styles.passwordCheckTextValid
-            ]}>
-                {text}
-            </Text>
-        </View>
-    );
-
-    const editButtonColor = isEditing ? "#ff6b6b" : "#64bae8"; 
-    const editButtonText = isEditing ? "CANCELAR EDICIÓN" : "EDITAR PERFIL";
-    const editIcon = isEditing ? "times-circle" : "pencil";
-    const saveButtonText = isChangingPassword ? "GUARDAR CONTRASEÑA" : "GUARDAR CAMBIOS";
-
-
+    // 6. RENDERIZADO FINAL
     return (
         <KeyboardAwareScrollView
-          contentContainerStyle={{ flexGrow: 1 }}
-          enableOnAndroid={true}
-          extraScrollHeight={-60}
+          contentContainerStyle={styles.scrollContent}
+          enableOnAndroid={true} 
+          extraScrollHeight={50} 
           enableAutomaticScroll={true}
-          keyboardShouldPersistTaps="handled"
+          keyboardShouldPersistTaps="handled" 
         >
-          <LinearGradient colors={["#FFFFFF", "#9FE2CF"]} style={styles.container}>
-          <View style={styles.card}>
-              <Text style={styles.title}>{isEditing ? "Editar Perfil" : "Mi Perfil"}</Text>
+          <LinearGradient colors={["#FFFFFF", "#9FE2CF"]} style={styles.gradientBackground}>
+              <Text style={styles.mainTitle}>Mi Perfil</Text>
               
-              {/* ==================== UI FOTO DE PERFIL ==================== */}
-              <View style={styles.avatarContainer}>
-                  {isLoadingImage ? (
-                      // Indicador de carga mientras sube la imagen
-                      <View style={[styles.avatar, styles.loadingOverlay]}>
-                          <ActivityIndicator size="large" color="#64bae8" />
-                          <Text style={styles.loadingText}>Subiendo...</Text>
-                      </View>
-                  ) : (
-                      // Imagen de perfil normal
-                      <Image
-                          source={{ uri: profileImage || DEFAULT_AVATAR }}
-                          style={styles.avatar}
-                      />
-                  )}
-                  
-                  <TouchableOpacity
-                      style={styles.avatarEditButton}
-                      onPress={handleAvatarPress} 
-                      disabled={isLoadingImage} // Deshabilitar durante la carga
-                  >
-                      <LinearGradient
-                          colors={["#64bae8", "#4a90e2"]}
-                          style={styles.avatarEditButtonGradient}
-                          start={{ x: 0, y: 0.5 }}
-                          end={{ x: 1, y: 0.5 }}
-                      >
-                          <FontAwesome name="camera" size={16} color="#fff" />
-                      </LinearGradient>
-                  </TouchableOpacity>
-              </View>
-
-              {/* ==================== CAMPOS DE INFORMACIÓN/EDICIÓN ==================== */}
-              {!isChangingPassword && (
-                  <>
-                      {/* NOMBRE */}
-                      <Text style={styles.label}>Nombre(s)</Text>
-                      <View style={[styles.inputGroup, isEditing && firstNameError && styles.inputGroupError]}>
-                          <TextInput
-                          style={styles.input}
-                          value={firstName}
-                          onChangeText={handleFirstNameChange}
-                          editable={isEditing && !isChangingPassword}
-                          placeholder="Ingrese su nombre"
-                          placeholderTextColor="#888"
-                          />
-                      </View>
-                      {isEditing && firstNameError && (
-                          <Text style={styles.errorText}>El nombre solo debe contener letras</Text>
-                      )}
-                      
-                      {/* APELLIDO */}
-                      <Text style={styles.label}>Apellido(s)</Text>
-                      <View style={[styles.inputGroup, isEditing && lastNameError && styles.inputGroupError]}>
-                          <TextInput
-                          style={styles.input}
-                          value={lastName}
-                          onChangeText={handleLastNameChange}
-                          editable={isEditing && !isChangingPassword}
-                          placeholder="Ingrese su apellido"
-                          placeholderTextColor="#888"
-                          />
-                      </View>
-                      {isEditing && lastNameError && (
-                          <Text style={styles.errorText}>El apellido solo debe contener letras</Text>
-                      )}
-
-                      {/* CORREO */}
-                      <Text style={styles.label}>Correo</Text>
-                      <View style={[styles.inputGroup, isEditing && emailError && styles.inputGroupError]}>
-                          <TextInput
-                          style={styles.input}
-                          value={email}
-                          onChangeText={handleEmailChange}
-                          editable={isEditing && !isChangingPassword}
-                          keyboardType="email-address"
-                          autoCapitalize="none"
-                          placeholder="Correo"
-                          placeholderTextColor="#888"
-                          />
-                      </View>
-                      {isEditing && emailError && (
-                          <Text style={styles.errorText}>Formato de correo inválido</Text>
-                      )}
-                      
-                      {/* BOTÓN DE CAMBIAR CONTRASEÑA */}
-                      {isEditing && (
-                          <TouchableOpacity 
-                              style={styles.changePasswordButton} 
-                              onPress={() => setIsChangingPassword(true)}
-                          >
-                              <Text style={styles.changePasswordButtonText}>Cambiar Contraseña</Text>
-                          </TouchableOpacity>
-                      )}
-                  </>
-              )}
-              
-              {/* ==================== NUEVOS CAMPOS (VISIBLES SOLO EN EDICIÓN) ==================== */}
-              {isEditing && !isChangingPassword && (
-                  <>
-                      {/* DIRECCIÓN */}
-                      <Text style={styles.label}>Dirección</Text>
-                      <View style={styles.inputGroup}>
-                          <TextInput
-                              style={styles.input}
-                              placeholder="Calle, número, ciudad, etc."
-                              placeholderTextColor="#888"
-                              value={address}
-                              onChangeText={text => setAddress(cleanAddress(text))}
-                              editable={isEditing}
-                          />
-                      </View>
-
-                      {/* TELÉFONO */}
-                      <Text style={styles.label}>Teléfono</Text>
-                      <View style={styles.inputGroup}>
-                          <TextInput
-                              style={styles.input}
-                              placeholder="Número de teléfono"
-                              placeholderTextColor="#888"
-                              value={phone}
-                              keyboardType="numeric" 
-                              onChangeText={text => setPhone(cleanPhone(text))}
-                              editable={isEditing}
-                          />
-                      </View>
-                  </>
-              )}
-              {/* ==================== FIN NUEVOS CAMPOS ==================== */}
-
-
-              {/* ==================== SECCIÓN DE CAMBIO DE CONTRASEÑA ==================== */}
-              {isChangingPassword && (
-                  <>
-                      <Text style={styles.subtitle}>Cambiar Contraseña</Text>
-
-                      {/* CONTRASEÑA ACTUAL */}
-                      <Text style={styles.label}>Contraseña Actual</Text>
-                      <View style={[styles.inputGroup, currentPasswordError && styles.inputGroupError]}>
-                          <TextInput
-                              style={styles.input}
-                              placeholder="Contraseña Actual"
-                              value={currentPassword}
-                              onChangeText={setCurrentPassword}
-                              secureTextEntry={!showCurrentPassword}
-                              placeholderTextColor="#888"
-                          />
-                          <TouchableOpacity onPress={() => setShowCurrentPassword(!showCurrentPassword)} style={styles.eyeButton}>
-                              <FontAwesome name={showCurrentPassword ? "eye-slash" : "eye"} size={18} color="#555" />
-                          </TouchableOpacity>
-                      </View>
-                      {currentPasswordError && (
-                          <Text style={styles.errorText}>La contraseña actual no es correcta</Text>
-                      )}
-
-                      {/* NUEVA CONTRASEÑA */}
-                      <Text style={styles.label}>Nueva Contraseña</Text>
-                      <View style={styles.inputGroup}>
-                          <TextInput
-                              style={styles.input}
-                              placeholder="Nueva Contraseña"
-                              value={newPassword}
-                              onChangeText={setNewPassword}
-                              secureTextEntry={!showNewPassword}
-                              onFocus={() => setShowPasswordInfo(true)}
-                              onBlur={() => setShowPasswordInfo(false)}
-                              placeholderTextColor="#888"
-                          />
-                          <TouchableOpacity onPress={() => setShowNewPassword(!showNewPassword)} style={styles.eyeButton}>
-                              <FontAwesome name={showNewPassword ? "eye-slash" : "eye"} size={18} color="#555" />
-                          </TouchableOpacity>
-                      </View>
-                      
-                      {showPasswordInfo && (
-                          <View style={styles.passwordCard}>
-                              <Text style={styles.passwordCardTitle}>Requisitos de la nueva contraseña:</Text>
-                              <PasswordRequirementCheck meets={passwordChecks.hasMinLength} text="Mínimo 6 caracteres" />
-                              <PasswordRequirementCheck meets={passwordChecks.hasCase} text="Al menos una letra minúscula" />
-                              <PasswordRequirementCheck meets={passwordChecks.hasUppercase} text="Al menos una letra mayúscula" />
-                              <PasswordRequirementCheck meets={passwordChecks.hasNumber} text="Al menos un número" />
-                          </View>
-                      )}
-
-                      <Text style={styles.label}>Confirmar Nueva Contraseña</Text>
-                      <View style={styles.inputGroup}>
-                          <TextInput
-                              style={styles.input}
-                              placeholder="Confirme la nueva contraseña"
-                              value={confirmNewPassword}
-                              onChangeText={setConfirmNewPassword}
-                              secureTextEntry={!showConfirmNewPassword}
-                              onFocus={() => setShowPasswordMatchInfo(true)}
-                              onBlur={() => setShowPasswordMatchInfo(false)}
-                              placeholderTextColor="#888"
-                          />
-                          <TouchableOpacity onPress={() => setShowConfirmNewPassword(!showConfirmNewPassword)} style={styles.eyeButton}>
-                              <FontAwesome name={showConfirmNewPassword ? "eye-slash" : "eye"} size={18} color="#555" />
-                          </TouchableOpacity>
-                      </View>
-                      
-                      {showPasswordMatchInfo && (confirmNewPassword.length > 0) && (
-                          <PasswordMatchInfo meets={passwordsMatch} /> 
-                      )}
-                      {confirmNewPassword.length === 0 && <View style={{marginBottom: 10}}/>}
-
-                  </>
-              )}
-              
-              {/* ==================== BOTÓN GUARDAR (Común) ==================== */}
-              {isEditing && (
-                  <TouchableOpacity 
-                      style={styles.saveButton} 
-                      onPress={isChangingPassword ? handleChangePassword : handleUpdateProfile}
-                      disabled={isLoadingImage} // Deshabilitar si está subiendo la imagen
-                  >
-                      <Text style={styles.saveButtonText}>{saveButtonText}</Text>
-                  </TouchableOpacity>
-              )}
-
-              {/* ==================== BOTÓN EDITAR/CANCELAR EDICIÓN (Común) ==================== */}
-              <TouchableOpacity 
-                  style={[styles.actionButton, { backgroundColor: editButtonColor }]}
-                  onPress={() => isEditing ? handleCancelEdit() : setIsEditing(true)}
-                  disabled={isLoadingImage} // Deshabilitar si está subiendo la imagen
-              >
-                  <FontAwesome 
-                      name={editIcon} 
-                      size={18} 
-                      color={"#fff"} 
-                      style={{ marginRight: 8 }}
+              <View style={styles.cardContainer}>
+                  {/* TARJETA 1: PERFIL BÁSICO */}
+                  <PerfilCard 
+                    firstName={firstName}
+                    setFirstName={setFirstName}
+                    firstNameError={firstNameError}
+                    lastName={lastName}
+                    setLastName={setLastName}
+                    lastNameError={lastNameError}
+                    isEditingProfile={isEditingProfile}
+                    setIsEditingProfile={setIsEditingProfile}
+                    isLoadingImage={isLoadingImage}
+                    isEditingContact={isEditingContact}
+                    isChangingPassword={isChangingPassword}
+                    profileImage={profileImage}
+                    DEFAULT_AVATAR={DEFAULT_AVATAR}
+                    handleAvatarPress={handleAvatarPress}
+                    handleFirstNameChange={handleFirstNameChange}
+                    handleLastNameChange={handleLastNameChange}
+                    showAlert={showAlert}
+                    handleUpdateProfile={handleUpdateProfile}
+                    handleCancelEdit={handleCancelEdit}
                   />
-                  <Text style={styles.actionButtonText}>
-                      {editButtonText}
-                  </Text>
-              </TouchableOpacity>
-
+                  
+                  {/* TARJETA 2: CONTACTO */}
+                  <ContactoCard 
+                    email={email}
+                    handleEmailChange={handleEmailChange}
+                    emailError={emailError}
+                    address={address}
+                    setAddress={setAddress}
+                    phone={phone}
+                    setPhone={setPhone}
+                    isEditingContact={isEditingContact}
+                    setIsEditingContact={setIsEditingContact}
+                    isEditingProfile={isEditingProfile}
+                    isChangingPassword={isChangingPassword}
+                    showAlert={showAlert}
+                    handleUpdateContact={handleUpdateContact}
+                    handleCancelEdit={handleCancelEdit}
+                  />
+                  
+                  {/* TARJETA 3: CONTRASEÑA */}
+                  <PasswordCard 
+                    isChangingPassword={isChangingPassword}
+                    setIsChangingPassword={setIsChangingPassword}
+                    isEditingProfile={isEditingProfile}
+                    isEditingContact={isEditingContact}
+                    currentPassword={currentPassword}
+                    setCurrentPassword={setCurrentPassword}
+                    currentPasswordError={currentPasswordError}
+                    setCurrentPasswordError={setCurrentPasswordError}
+                    newPassword={newPassword}
+                    setNewPassword={setNewPassword}
+                    confirmNewPassword={confirmNewPassword}
+                    setConfirmNewPassword={setConfirmNewPassword}
+                    showCurrentPassword={showCurrentPassword}
+                    setShowCurrentPassword={setShowCurrentPassword}
+                    showNewPassword={showNewPassword}
+                    setShowNewPassword={setShowNewPassword}
+                    showConfirmNewPassword={showConfirmNewPassword}
+                    setShowConfirmNewPassword={setShowConfirmNewPassword}
+                    showPasswordInfo={showPasswordInfo}
+                    setShowPasswordInfo={setShowPasswordInfo}
+                    showPasswordMatchInfo={showPasswordMatchInfo}
+                    setShowPasswordMatchInfo={setShowPasswordMatchInfo}
+                    passwordChecks={passwordChecks}
+                    passwordsMatch={passwordsMatch}
+                    showAlert={showAlert}
+                    handleChangePassword={handleChangePassword}
+                    handleCancelEdit={handleCancelEdit}
+                  />
+              </View>
 
               {/* BOTÓN DE CERRAR SESIÓN */}
               <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-              <Text style={styles.logoutButtonText}>Cerrar sesión</Text>
+                <Text style={styles.logoutButtonText}>Cerrar sesión</Text>
               </TouchableOpacity>
-          </View>
+          </LinearGradient>
           
-          {/* ==================== MODAL DE SELECCIÓN DE IMAGEN ==================== */}
+          {/* MODAL DE SELECCIÓN DE IMAGEN */}
           <Modal
               animationType="fade"
               transparent={true}
@@ -968,7 +1210,6 @@ export default function Perfil({ navigation }) {
                   <View style={styles.menuContainer}>
                       <Text style={styles.menuTitle}>Seleccionar Foto</Text>
                       
-                      {/* Opción Cámara */}
                       <TouchableOpacity 
                           style={styles.menuOption} 
                           onPress={() => pickImage('camera')}
@@ -979,7 +1220,6 @@ export default function Perfil({ navigation }) {
 
                       <View style={styles.menuDivider} />
 
-                      {/* Opción Galería */}
                       <TouchableOpacity 
                           style={styles.menuOption} 
                           onPress={() => pickImage('library')}
@@ -988,7 +1228,6 @@ export default function Perfil({ navigation }) {
                           <Text style={styles.menuOptionText}>Elegir de Galería</Text>
                       </TouchableOpacity>
                       
-                      {/* Botón de Cancelar */}
                       <TouchableOpacity 
                           style={[styles.menuOption, styles.menuCancel]} 
                           onPress={() => setShowImageSourceOptions(false)}
@@ -1015,7 +1254,6 @@ export default function Perfil({ navigation }) {
               
               buttonText={alertConfig.isConfirmation ? "CERRAR SESIÓN" : "Aceptar"} 
           />
-          </LinearGradient>
       </KeyboardAwareScrollView>
     );
 }
@@ -1024,40 +1262,48 @@ export default function Perfil({ navigation }) {
 // ESTILOS
 // ==========================================================
 const styles = StyleSheet.create({
-    container: {
-      flex: 1,
-      paddingHorizontal: 20,
-      paddingTop: 30,
-      paddingBottom: 30,
-      justifyContent: 'center',
-      alignItems: "center",
+    scrollContent: {
+        flexGrow: 1,
+        alignItems: "center",
+    },
+    gradientBackground: {
+        width: '100%',
+        paddingHorizontal: 20,
+        paddingTop: 40,
+        paddingBottom: 40,
+        alignItems: "center",
+    },
+    mainTitle: {
+        fontSize: 28,
+        fontWeight: "bold",
+        color: "#222",
+        marginBottom: 20,
+        textAlign: "center",
+    },
+    cardContainer: {
+        width: "100%",
+        maxWidth: 450,
     },
     card: {
       width: "100%",
-      maxWidth: 400,
       backgroundColor: "#FFFFFF",
-      borderRadius: 8,
+      borderRadius: 12,
       padding: 20,
       elevation: 4,
       shadowColor: "#000",
       shadowOffset: { width: 0, height: 2 },
       shadowOpacity: 0.1,
-      shadowRadius: 4,
+      shadowRadius: 5,
+      marginBottom: 25,
     },
-    title: {
-      fontSize: 24,
-      fontWeight: "bold",
-      color: "#222",
-      marginBottom: 10,
-      textAlign: "center",
-    },
-    subtitle: {
+    cardTitle: {
       fontSize: 20,
-      fontWeight: "bold",
-      color: "#64bae8",
-      marginBottom: 10,
-      marginTop: 20,
-      textAlign: "center",
+      fontWeight: "700",
+      color: "#444",
+      marginBottom: 15,
+      borderBottomWidth: 1,
+      borderBottomColor: '#eee',
+      paddingBottom: 10,
     },
     
     // --- ESTILOS DE FOTO DE PERFIL ---
@@ -1070,11 +1316,10 @@ const styles = StyleSheet.create({
       width: 120,
       height: 120,
       borderRadius: 60,
-      backgroundColor: '#e0e0e0',
+      backgroundColor: '#f0f0f0',
       borderWidth: 3,
-      borderColor: '#05f7c2',
+      borderColor: '#64bae8',
     },
-    // Estilos para el indicador de carga
     loadingOverlay: { 
         justifyContent: 'center',
         alignItems: 'center',
@@ -1090,7 +1335,8 @@ const styles = StyleSheet.create({
     avatarEditButton: {
       position: 'absolute',
       bottom: 0,
-      right: "60%", 
+      right: "50%", 
+      transform: [{ translateX: 30 }],
       elevation: 5,
     },
     avatarEditButtonGradient: {
@@ -1108,7 +1354,7 @@ const styles = StyleSheet.create({
     // --- ESTILOS DE PERFIL Y BOTONES ---
     label: {
       fontSize: 14, 
-      fontWeight: "bold",
+      fontWeight: "600",
       color: "#333",
       marginBottom: 5,
       marginTop: 10,
@@ -1122,15 +1368,17 @@ const styles = StyleSheet.create({
       paddingHorizontal: 10,
       borderWidth: 1,
       borderColor: "#e0e0e0",
+      height: 45,
     },
     inputGroupError: {
       borderColor: "#ff6b6b", 
       borderWidth: 2,
+      backgroundColor: '#fffafa', 
     },
     input: {
       flex: 1,
-      height: 40,
-      fontSize: 14,
+      height: '100%',
+      fontSize: 15,
       color: "#333",
     },
     eyeButton: {
@@ -1142,20 +1390,15 @@ const styles = StyleSheet.create({
       marginBottom: 8,
       marginTop: -3,
     },
-    changePasswordButton: {
-      alignSelf: 'flex-start',
-      marginTop: 10,
-      marginBottom: 5,
-      paddingVertical: 5,
-    },
-    changePasswordButtonText: {
-      color: "#64bae8",
-      fontSize: 14,
-      fontWeight: 'bold',
-      textDecorationLine: 'underline',
+
+    // Contenedor para botones en modo edición
+    actionButtonsContainer: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginTop: 15,
     },
   
-    // Botón Guardar Cambios 
+    // Botón Guardar Cambios (Para las tarjetas 1 y 2 en modo edición)
     saveButton: {
       backgroundColor: "#05f7c2", 
       paddingVertical: 12,
@@ -1163,16 +1406,14 @@ const styles = StyleSheet.create({
       alignItems: "center",
       marginTop: 20,
       marginBottom: 10,
-      width: '60%',
-      alignSelf: "center",
     },
     saveButtonText: {
       color: "#000",
-      fontSize: 16,
+      fontSize: 15,
       fontWeight: "bold",
     },
     
-    // Estilo unificado para botones de acción (Editar/Cancelar)
+    // Estilo unificado para botones de acción (Editar/Cancelar/Cambiar Contraseña)
     actionButton: {
       flexDirection: 'row',
       alignItems: "center",
@@ -1181,22 +1422,24 @@ const styles = StyleSheet.create({
       borderRadius: 25,
       marginTop: 20,
       marginBottom: 10, 
-      width: '60%',
-      alignSelf: "center",
     },
     actionButtonText: {
       color: "#fff",
-      fontSize: 16,
+      fontSize: 15,
       fontWeight: "bold",
     },
   
-    // Botón Cerrar Sesión
+    // Botón Cerrar Sesión (Reposicionado)
     logoutButton: {
       backgroundColor: "#ff6b6b", 
-      paddingVertical: 12,
+      paddingVertical: 14, 
       borderRadius: 25,
       alignItems: "center",
-      marginTop: 10,
+      marginTop: 20, 
+      marginBottom: 30, 
+      width: '85%',
+      maxWidth: 400,
+      elevation: 4,
     },
     logoutButtonText: {
       color: "#fff",
@@ -1210,7 +1453,7 @@ const styles = StyleSheet.create({
       borderRadius: 10,
       padding: 14,
       marginBottom: 12,
-      marginTop: -5,
+      marginTop: 5, 
       width: "100%",
       borderWidth: 1,
       borderColor: "#e0e0e0",
@@ -1240,7 +1483,7 @@ const styles = StyleSheet.create({
     passwordMatchContainer: {
       flexDirection: 'row',
       alignItems: 'center',
-      marginBottom: 12, 
+      marginBottom: 10, 
       marginTop: 5, 
       paddingHorizontal: 5, 
     },
