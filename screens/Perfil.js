@@ -126,6 +126,7 @@ const ActionButton = React.memo(({ isEditing, onEdit, onCancel, onSave, saveText
     const cancelColor = "#ff6b6b"; 
     const saveColor = "#05f7c2";
 
+    // Si NO está editando, solo muestra el botón de EDITAR (modo compacto)
     if (!isEditing) {
         return (
             <TouchableOpacity 
@@ -146,6 +147,7 @@ const ActionButton = React.memo(({ isEditing, onEdit, onCancel, onSave, saveText
         );
     }
 
+    // Si SÍ está editando, muestra los botones de GUARDAR y CANCELAR
     return (
         <View style={styles.actionButtonsContainer}>
             <TouchableOpacity 
@@ -189,9 +191,9 @@ const PerfilCard = React.memo((props) => {
 
     return (
         <View style={styles.card}>
-            <Text style={styles.cardTitle}>Perfil Básico</Text>
+            <Text style={styles.cardTitle}>Nombre, apellido y foto</Text>
             
-            {/* UI FOTO DE PERFIL */}
+            {/* UI FOTO DE PERFIL (Se mantiene visible) */}
             <View style={styles.avatarContainer}>
                 {isLoadingImage ? (
                     <View style={[styles.avatar, styles.loadingOverlay]}>
@@ -220,40 +222,46 @@ const PerfilCard = React.memo((props) => {
                     </LinearGradient>
                 </TouchableOpacity>
             </View>
-
-            {/* NOMBRE */}
-            <Text style={styles.label}>Nombre(s)</Text>
-            <View style={[styles.inputGroup, isEditingProfile && firstNameError && styles.inputGroupError]}>
-                <TextInput
-                key={isEditingProfile ? 'profile-name-edit' : 'profile-name-view'}
-                style={styles.input}
-                value={firstName}
-                onChangeText={handleFirstNameChange}
-                editable={isEditingProfile}
-                placeholder="Ingrese su nombre"
-                placeholderTextColor="#888"
-                />
-            </View>
-            {isEditingProfile && firstNameError && (
-                <Text style={styles.errorText}>El nombre solo debe contener letras</Text>
-            )}
             
-            {/* APELLIDO */}
-            <Text style={styles.label}>Apellido(s)</Text>
-            <View style={[styles.inputGroup, isEditingProfile && lastNameError && styles.inputGroupError]}>
-                <TextInput
-                key={isEditingProfile ? 'profile-last-edit' : 'profile-last-view'}
-                style={styles.input}
-                value={lastName}
-                onChangeText={handleLastNameChange}
-                editable={isEditingProfile}
-                placeholder="Ingrese su apellido"
-                placeholderTextColor="#888"
-                />
-            </View>
-            {isEditingProfile && lastNameError && (
-                <Text style={styles.errorText}>El apellido solo debe contener letras</Text>
+            {/* INICIO CONTENIDO CONDICIONAL: Solo visible al editar */}
+            {isEditingProfile && (
+                <>
+                    {/* NOMBRE */}
+                    <Text style={styles.label}>Nombre(s)</Text>
+                    <View style={[styles.inputGroup, firstNameError && styles.inputGroupError]}>
+                        <TextInput
+                        key={'profile-name-edit'}
+                        style={styles.input}
+                        value={firstName}
+                        onChangeText={handleFirstNameChange}
+                        editable={isEditingProfile}
+                        placeholder="Ingrese su nombre"
+                        placeholderTextColor="#888"
+                        />
+                    </View>
+                    {firstNameError && (
+                        <Text style={styles.errorText}>El nombre solo debe contener letras</Text>
+                    )}
+                    
+                    {/* APELLIDO */}
+                    <Text style={styles.label}>Apellido(s)</Text>
+                    <View style={[styles.inputGroup, lastNameError && styles.inputGroupError]}>
+                        <TextInput
+                        key={'profile-last-edit'}
+                        style={styles.input}
+                        value={lastName}
+                        onChangeText={handleLastNameChange}
+                        editable={isEditingProfile}
+                        placeholder="Ingrese su apellido"
+                        placeholderTextColor="#888"
+                        />
+                    </View>
+                    {lastNameError && (
+                        <Text style={styles.errorText}>El apellido solo debe contener letras</Text>
+                    )}
+                </>
             )}
+            {/* FIN CONTENIDO CONDICIONAL */}
 
             {/* BOTÓN EDITAR/GUARDAR/CANCELAR */}
             <ActionButton 
@@ -267,10 +275,10 @@ const PerfilCard = React.memo((props) => {
                 }}
                 onCancel={() => handleCancelEdit('profile')}
                 onSave={handleUpdateProfile}
-                saveText="GUARDAR PERFIL"
+                saveText="GUARDAR"
                 disabled={isLoadingImage || isEditingContact || isChangingPassword}
                 icon="pencil"
-                text="EDITAR PERFIL"
+                text="EDITAR"
             />
 
         </View>
@@ -293,54 +301,60 @@ const ContactoCard = React.memo((props) => {
         <View style={styles.card}>
             <Text style={styles.cardTitle}>Información de Contacto</Text>
             
-            {/* CORREO */}
-            <Text style={styles.label}>Correo Electrónico</Text>
-            <View style={[styles.inputGroup, isEditingContact && emailError && styles.inputGroupError]}>
-                <TextInput
-                key={isEditingContact ? 'contact-email-edit' : 'contact-email-view'}
-                style={styles.input}
-                value={email}
-                onChangeText={handleEmailChange}
-                editable={isEditingContact}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                placeholder="Correo"
-                placeholderTextColor="#888"
-                />
-            </View>
-            {isEditingContact && emailError && (
-                <Text style={styles.errorText}>Formato de correo inválido</Text>
-            )}
-            
-            {/* DIRECCIÓN */}
-            <Text style={styles.label}>Dirección</Text>
-            <View style={styles.inputGroup}>
-                <TextInput
-                    key={isEditingContact ? 'contact-address-edit' : 'contact-address-view'}
-                    style={styles.input}
-                    placeholder="Calle, número, ciudad, etc."
-                    placeholderTextColor="#888"
-                    value={address}
-                    onChangeText={text => setAddress(cleanAddress(text))}
-                    editable={isEditingContact}
-                />
-            </View>
+            {/* INICIO CONTENIDO CONDICIONAL: Solo visible al editar */}
+            {isEditingContact && (
+                <>
+                    {/* CORREO */}
+                    <Text style={styles.label}>Correo Electrónico</Text>
+                    <View style={[styles.inputGroup, emailError && styles.inputGroupError]}>
+                        <TextInput
+                        key={'contact-email-edit'}
+                        style={styles.input}
+                        value={email}
+                        onChangeText={handleEmailChange}
+                        editable={isEditingContact}
+                        keyboardType="email-address"
+                        autoCapitalize="none"
+                        placeholder="Correo"
+                        placeholderTextColor="#888"
+                        />
+                    </View>
+                    {emailError && (
+                        <Text style={styles.errorText}>Formato de correo inválido</Text>
+                    )}
+                    
+                    {/* DIRECCIÓN */}
+                    <Text style={styles.label}>Dirección</Text>
+                    <View style={styles.inputGroup}>
+                        <TextInput
+                            key={'contact-address-edit'}
+                            style={styles.input}
+                            placeholder="Calle, número, ciudad, etc."
+                            placeholderTextColor="#888"
+                            value={address}
+                            onChangeText={text => setAddress(cleanAddress(text))}
+                            editable={isEditingContact}
+                        />
+                    </View>
 
-            {/* TELÉFONO */}
-            <Text style={styles.label}>Teléfono</Text>
-            <View style={styles.inputGroup}>
-                <TextInput
-                    key={isEditingContact ? 'contact-phone-edit' : 'contact-phone-view'}
-                    style={styles.input}
-                    placeholder="Número de teléfono"
-                    placeholderTextColor="#888"
-                    value={phone}
-                    keyboardType="numeric" 
-                    onChangeText={text => setPhone(cleanPhone(text))}
-                    editable={isEditingContact}
-                    maxLength={15}
-                />
-            </View>
+                    {/* TELÉFONO */}
+                    <Text style={styles.label}>Teléfono</Text>
+                    <View style={styles.inputGroup}>
+                        <TextInput
+                            key={'contact-phone-edit'}
+                            style={styles.input}
+                            placeholder="Número de teléfono"
+                            placeholderTextColor="#888"
+                            value={phone}
+                            keyboardType="numeric" 
+                            onChangeText={text => setPhone(cleanPhone(text))}
+                            editable={isEditingContact}
+                            maxLength={15}
+                        />
+                    </View>
+                </>
+            )}
+            {/* FIN CONTENIDO CONDICIONAL (No se muestra nada en modo vista) */}
 
             {/* BOTÓN EDITAR/GUARDAR/CANCELAR */}
             <ActionButton 
@@ -354,10 +368,10 @@ const ContactoCard = React.memo((props) => {
                 }}
                 onCancel={() => handleCancelEdit('contact')}
                 onSave={handleUpdateContact}
-                saveText="GUARDAR CONTACTO"
+                saveText="GUARDAR"
                 disabled={isEditingProfile || isChangingPassword}
                 icon="envelope"
-                text="EDITAR CONTACTO"
+                text="EDITAR"
             />
         </View>
     );
@@ -378,7 +392,7 @@ const PasswordCard = (props) => {
 
     return (
         <View style={styles.card}>
-            <Text style={styles.cardTitle}>Seguridad y Contraseña</Text>
+            <Text style={styles.cardTitle}>Seguridad</Text>
 
             {/* VISTA DE SOLO LECTURA */}
             {!isChangingPassword ? (
@@ -406,6 +420,7 @@ const PasswordCard = (props) => {
                     </Text>
                 </TouchableOpacity>
             ) : (
+                // CONTENIDO DE EDICIÓN DE CONTRASEÑA (Siempre condicionalmente mostrado por isChangingPassword)
                 <>
                     {/* CONTRASEÑA ACTUAL */}
                     <Text style={styles.label}>Contraseña Actual</Text>
@@ -1038,26 +1053,18 @@ export default function Perfil({ navigation }) {
         } catch (error) {
             // Manejo del error
             
-            // 1. ERROR DE CONTRASEÑA INCORRECTA
+            // 1. ERROR DE CONTRASEÑA INCORRECTA (CORREGIDO: usa la cadena 'auth/wrong-password')
             if (error.code === 'auth/wrong-password') {
                 
                 setCurrentPasswordError(true); 
-                // setCurrentPassword(''); 
-                // setNewPassword('');
-                // setConfirmNewPassword('');
-
                 showAlert("error", "Error", "La contraseña actual es incorrecta.");
                 return; 
             } 
             
-            // 2. ERROR DE DEMASIADOS INTENTOS (TOO MANY REQUESTS)
+            // 2. ERROR DE DEMASIADOS INTENTOS (CORREGIDO: usa la cadena 'auth/too-many-requests')
             else if (error.code === 'auth/too-many-requests') { 
                 
                 setCurrentPasswordError(true); 
-                // setCurrentPassword(''); 
-                // setNewPassword('');
-                // setConfirmNewPassword('');
-
                 showAlert("error", "Alerta de Seguridad", "Demasiados intentos fallidos. Por favor, espera unos minutos antes de volver a intentar.");
                 return; 
             }
@@ -1085,7 +1092,7 @@ export default function Perfil({ navigation }) {
             
         } catch (error) {
             let errorMessage = "Hubo un problema al actualizar la contraseña.";
-            if (error.code === AuthErrorCodes.WEAK_PASSWORD) {
+            if (error.code === 'auth/weak-password') { // CORREGIDO: usa la cadena 'auth/weak-password'
                 errorMessage = "La nueva contraseña es demasiado débil.";
             }
             console.error("Update password error:", error);
@@ -1259,7 +1266,7 @@ export default function Perfil({ navigation }) {
 }
 
 // ==========================================================
-// ESTILOS
+// ESTILOS (ACTUALIZADOS CON COMPACTACIÓN Y BORDES VERDE AGUA)
 // ==========================================================
 const styles = StyleSheet.create({
     scrollContent: {
@@ -1274,16 +1281,21 @@ const styles = StyleSheet.create({
         alignItems: "center",
     },
     mainTitle: {
+        backgroundColor: "#05f7c2",
         fontSize: 28,
         fontWeight: "bold",
         color: "#222",
         marginBottom: 20,
         textAlign: "center",
+        width: "100%",
+        borderRadius: 12,
+
     },
     cardContainer: {
         width: "100%",
         maxWidth: 450,
     },
+    // TARJETA: Con borde verde agua
     card: {
       width: "100%",
       backgroundColor: "#FFFFFF",
@@ -1295,18 +1307,21 @@ const styles = StyleSheet.create({
       shadowOpacity: 0.1,
       shadowRadius: 5,
       marginBottom: 25,
+      borderWidth: 1.5, // Borde nuevo
+      borderColor: '#05f7c2', // Color verde agua
     },
+    // TÍTULO: Con línea verde agua
     cardTitle: {
       fontSize: 20,
       fontWeight: "700",
       color: "#444",
       marginBottom: 15,
-      borderBottomWidth: 1,
-      borderBottomColor: '#eee',
+      borderBottomWidth: 2, // Aumento de grosor
+      borderBottomColor: '#05f7c2', // Color verde agua
       paddingBottom: 10,
     },
     
-    // --- ESTILOS DE FOTO DE PERFIL ---
+    // --- ESTILOS DE FOTO DE PERFIL (sin cambios) ---
     avatarContainer: {
       alignItems: 'center',
       marginBottom: 20,
@@ -1318,7 +1333,7 @@ const styles = StyleSheet.create({
       borderRadius: 60,
       backgroundColor: '#f0f0f0',
       borderWidth: 3,
-      borderColor: '#64bae8',
+      borderColor: '#05f7c2',
     },
     loadingOverlay: { 
         justifyContent: 'center',
@@ -1335,7 +1350,7 @@ const styles = StyleSheet.create({
     avatarEditButton: {
       position: 'absolute',
       bottom: 0,
-      right: "50%", 
+      right: "69%", 
       transform: [{ translateX: 30 }],
       elevation: 5,
     },
@@ -1350,7 +1365,26 @@ const styles = StyleSheet.create({
     },
     // --- FIN ESTILOS DE FOTO DE PERFIL ---
   
-  
+    // VALOR EN MODO VISTA (el viewValueMini ya no se usa, pero lo mantengo por si acaso)
+    viewValue: {
+        fontSize: 16,
+        color: "#333",
+        paddingVertical: 10,
+        paddingHorizontal: 5,
+        marginBottom: 5,
+        fontWeight: '500', 
+    },
+    // Valor en modo vista MINIMALISTA (solo para tarjetas totalmente ocultas)
+    viewValueMini: {
+        fontSize: 14,
+        color: "#888",
+        paddingVertical: 5,
+        paddingHorizontal: 5,
+        marginBottom: 0,
+        fontWeight: '400', 
+        textAlign: 'center',
+    },
+
     // --- ESTILOS DE PERFIL Y BOTONES ---
     label: {
       fontSize: 14, 
