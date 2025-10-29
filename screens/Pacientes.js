@@ -1,44 +1,23 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, StatusBar, TextInput, Modal } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react'; 
+import { 
+    View, 
+    Text, 
+    StyleSheet, 
+    FlatList, 
+    TouchableOpacity, 
+    StatusBar, 
+    TextInput, 
+    Modal, 
+    ActivityIndicator 
+} from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, FontAwesome, MaterialCommunityIcons } from '@expo/vector-icons'; 
-import NuevoPaciente from './NuevoPaciente';
+import { db } from '../src/config/firebaseConfig'; 
+import { collection, getDocs } from 'firebase/firestore'; 
 
-// Datos de ejemplo para los turnos
-const turnosData = [
-  {
-    id: '1',
-    nombre: 'Ricardo Perez',
-    telefono: '95475234',
-    correo: 'rperez@gmail.com',
-  },
-  {
-    id: '2',
-    nombre: 'Sofia Martinez',
-    telefono: '98754122',
-    correo: 'smartinez@gmail.com',
-  },
-  {
-    id: '3',
-    nombre: 'Elena Diaz',
-    telefono: '123456978',
-    correo: 'ediaz@gmail.com',
-  },
-  {
-    id: '4',
-    nombre: 'Javier Gerardo Milei',
-    telefono: '7988413516',
-    correo: 'javoxd@gmail.com',
-  },
-  {
-    id: '5',
-    nombre: 'Lautaro Puca',
-    telefono: '354165875',
-    correo: 'lpuca@gmail.com',
-  },
-];
-
+// ==========================================================
 // Componente para el menú modal (opciones de navegación)
+// ==========================================================
 const MenuModal = ({ visible, onClose, navigation }) => {
   const menuOptions = [
     { name: 'Inicio', screen: 'Home', isTab: true, icon: 'home-outline' },
@@ -99,27 +78,31 @@ const MenuModal = ({ visible, onClose, navigation }) => {
 };
 
 
+// ==========================================================
 // Componente individual para cada tarjeta de paciente
-const PacienteCard = ({ nombre, telefono, correo }) => (
-  // Estilo de armonización aplicado
-  <View style={[styles.turnoCard, styles.pacienteCardGlow]}>
-    <Text style={styles.pacienteNombre}>{nombre}</Text>
+// ==========================================================
+const PacienteCard = ({ nombreCompletoDisplay, dni, telefono, correo, id }) => ( // <-- MODIFICADO: Usamos nombreCompletoDisplay
+  <View style={[styles.pacienteCard, styles.pacienteCardGlow]}>
+    {/* Muestra el nombre en formato: APELLIDO, Nombre */}
+    <Text style={styles.pacienteNombre}>{nombreCompletoDisplay}</Text> 
+    
+    <Text style={styles.pacienteDni}>DNI: {dni || 'No especificado'}</Text> 
     <Text style={styles.pacienteTel}>Teléfono: {telefono}</Text>
     <Text style={styles.pacienteEmail}>Email: {correo}</Text>
 
     {/* Contenedor para los botones de acción */}
     <View style={styles.actionsContainer}>
       <TouchableOpacity 
-        style={[styles.actionButton, styles.editButton]} 
-        // onPress={() => onEdit(id)}
+        style={[styles.actionButton, styles.editButton, styles.buttonHalfWidth]} 
+        onPress={() => console.log('Editar paciente:', id)} 
       >
         <FontAwesome name="edit" size={18} color="#fff" />
         <Text style={styles.buttonText}>Editar</Text>
       </TouchableOpacity>
 
       <TouchableOpacity 
-        style={[styles.actionButton, styles.deleteButton]} 
-        // onPress={() => onDelete(id)}
+        style={[styles.actionButton, styles.deleteButton, styles.buttonHalfWidth]} 
+        onPress={() => console.log('Eliminar paciente:', id)} 
       >
         <FontAwesome name="trash" size={18} color="#fff" />
         <Text style={styles.buttonText}>Eliminar</Text>
@@ -128,12 +111,26 @@ const PacienteCard = ({ nombre, telefono, correo }) => (
 
   </View>
 );
-const renderEmptyList = (searchText) => { 
+
+
+// ==========================================================
+// Mensajes de Lista Vacía
+// ==========================================================
+const renderEmptyList = (searchText, isLoading) => { 
+  if (isLoading) {
+    return (
+      <View style={styles.emptyListContainer}>
+        <Text style={[styles.emptyListText, {color: '#3b82f6'}]}>Cargando pacientes...</Text>
+        <ActivityIndicator size="large" color="#3b82f6" style={{marginTop: 10}}/>
+      </View>
+    );
+  }
+
   if (searchText.length > 0) {
     return (
       <View style={styles.emptyListContainer}>
         <Text style={styles.emptyListText}>
-          No se encontraró "{searchText}".
+          No se encontró "{searchText}".
         </Text>
         <Text style={styles.emptyListSubText}>
           Verifica la escritura o registra un nuevo paciente.
@@ -141,33 +138,107 @@ const renderEmptyList = (searchText) => {
       </View>
     );
   }
-  return null; 
+  
+  return (
+    <View style={styles.emptyListContainer}>
+        <Text style={styles.emptyListText}>
+            No hay pacientes registrados.
+        </Text>
+        <Text style={styles.emptyListSubText}>
+            Presiona el botón "+" para agregar uno nuevo.
+        </Text>
+    </View>
+  );
 };
+
+
+// ==========================================================
+// Pantalla principal Pacientes
+// ==========================================================
 export default function Pacientes({ navigation }) {
   const [isMenuVisible, setIsMenuVisible] = useState(false);
-  const [searchText, setSearchText] = useState(''); // Estado para el texto de búsqueda
-  const [filteredData, setFilteredData] = useState(turnosData); // Estado para la lista filtrada
+  const [searchText, setSearchText] = useState(''); 
+  const [pacientesData, setPacientesData] = useState([]); 
+  const [filteredData, setFilteredData] = useState([]); 
+  const [isLoading, setIsLoading] = useState(true); 
+
+  // Función para obtener pacientes de Firestore
+  const fetchPacientes = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const pacientesCol = collection(db, 'pacientes');
+      const pacienteSnapshot = await getDocs(pacientesCol);
+      
+      let list = pacienteSnapshot.docs.map(doc => {
+        const data = doc.data();
+        const apellido = data.apellido || '';
+        const nombre = data.nombre || '';
+
+        return {
+          id: doc.id,
+          apellido: apellido, // Para ordenar
+          nombreCompletoBusqueda: `${nombre} ${apellido}`.trim(), // Para búsqueda
+          // Formato requerido: APELLIDO, Nombre
+          nombreCompletoDisplay: `${apellido.toUpperCase()}, ${nombre}`, 
+          dni: data.dni || '',
+          telefono: data.telefono || 'No especificado',
+          correo: data.email || 'No especificado',
+        };
+      });
+
+      // 1. Ordenamiento por Apellido (alfabético)
+      list.sort((a, b) => {
+        // localeCompare es más robusto para caracteres especiales (ñ, tildes)
+        return a.apellido.localeCompare(b.apellido);
+      });
+      
+      setPacientesData(list);
+      setFilteredData(list); 
+
+    } catch (error) {
+      console.error("Error al cargar pacientes:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []); 
+
+  useEffect(() => {
+    fetchPacientes();
+  }, [fetchPacientes]); 
 
   // Función para manejar la búsqueda en tiempo real
   const handleSearch = (text) => {
     setSearchText(text);
     
-    // Inicia el filtrado a partir del primer carácter
     if (text && text.length > 0) { 
       const lowercasedText = text.toLowerCase();
-      const newFilteredData = turnosData.filter(item => {
-        // Filtra por nombre o correo
+      
+      const newFilteredData = pacientesData.filter(item => { 
+        // Búsqueda por Nombre, Apellido (incluidos en nombreCompletoBusqueda) y DNI
         return (
-          item.nombre.toLowerCase().includes(lowercasedText) ||
-          item.correo.toLowerCase().includes(lowercasedText)
+          item.nombreCompletoBusqueda.toLowerCase().includes(lowercasedText) ||
+          (item.dni && item.dni.includes(text)) 
         );
       });
       setFilteredData(newFilteredData);
     } else {
       // Si el campo de búsqueda está vacío, muestra la lista completa
-      setFilteredData(turnosData);
+      setFilteredData(pacientesData); 
     }
   };
+  
+  // Vista de carga inicial
+  if (isLoading && filteredData.length === 0) {
+    return (
+        <LinearGradient 
+          colors={['#20d3c4ff', '#ab9fe2ff']} 
+          style={[styles.contenedorHeader, {justifyContent: 'center', alignItems: 'center'}]}
+        >
+            <ActivityIndicator size="large" color="#fff" />
+            <Text style={{color: '#fff', marginTop: 10, fontSize: 16}}>Cargando pacientes...</Text>
+        </LinearGradient>
+    );
+  }
 
   return (
     <View style={styles.contenedorHeader}>
@@ -188,27 +259,28 @@ export default function Pacientes({ navigation }) {
 
       {/* Contenedor de Contenido */}
       <View style={styles.contentContainer}>
-        <View style={styles.turnosHeader}>
+        <View style={styles.pacientesHeader}>
               <TextInput
                 style={styles.input}
-                placeholder= "Buscar paciente"
+                placeholder= "Buscar paciente (Nombre, Apellido o DNI)" 
                 placeholderTextColor="#666"
-                value={searchText} // Vincula el valor al estado
-                onChangeText={handleSearch} // Usa la función de búsqueda
+                value={searchText} 
+                onChangeText={handleSearch} 
                 autoCapitalize="none" 
                 autoCorrect={false} 
               />
         </View>
 
         {/* Lista de Pacientes */}
-        <LinearGradient colors={['#9FE2CF', '#FFFFFF']} style={styles.gradientTurnosList}>
+        <LinearGradient colors={['#ffffffff', '#67c4aaff']} style={styles.gradientPacientesList}>
           <FlatList
+            // Le pasamos la nueva propiedad nombreCompletoDisplay
             data={filteredData} 
-            renderItem={({ item }) => <PacienteCard {...item} />}
+            renderItem={({ item }) => <PacienteCard {...item} nombreCompletoDisplay={item.nombreCompletoDisplay} />}
             keyExtractor={item => item.id}
-            contentContainerStyle={styles.turnosList}
+            contentContainerStyle={styles.pacientesList}
             showsVerticalScrollIndicator={false} 
-            ListEmptyComponent={() => renderEmptyList(searchText)} // <-- NUEVO: Pasa searchText
+            ListEmptyComponent={() => renderEmptyList(searchText, isLoading)} 
           />
         </LinearGradient>
       </View>
@@ -241,8 +313,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 30,
-    paddingTop: 50, // Mantiene el ajuste para el margen superior
+    paddingVertical: 10,
+    paddingTop: 30, 
     backgroundColor: 'transparent', 
   },
   welcomeText: {
@@ -261,27 +333,28 @@ const styles = StyleSheet.create({
     overflow: 'hidden', 
     marginTop: 1, 
   },
-  turnosHeader: {
+  pacientesHeader: {
     paddingVertical: 20,
     alignItems: 'center',
     marginBottom: 1,
     backgroundColor: 'transparent', 
   },
-  gradientTurnosList: {
+  gradientPacientesList: {
     paddingVertical: 2,
     alignItems: 'center',
     flex: 1,
   },
-  turnosList: {
+  pacientesList: {
     paddingHorizontal: '5%', 
     paddingBottom: 20, 
-    width: '100%', 
+    width: '90%', 
   },
-  turnoCard: {
+  // --- MODIFICADO: Reducción de tamaño de tarjeta ---
+  pacienteCard: {
     backgroundColor: '#fff',
     borderRadius: 12,
-    padding: 25, 
-    marginBottom: 15,
+    padding: 15, // REDUCIDO de 25
+    marginBottom: 12, // REDUCIDO de 15
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -289,43 +362,51 @@ const styles = StyleSheet.create({
     elevation: 4,
     width: "100%", 
   },
-  // ESTILO DE BORDE DE TARJETA CAMBIADO A VERDE/TEAL
   pacienteCardGlow: {
     borderLeftWidth: 6,
-    borderLeftColor: '#1595a6', // VERDE/TEAL
+    borderLeftColor: '#1595a6', 
     borderRadius: 12, 
     overflow: 'hidden', 
   },
   pacienteNombre: {
-    fontSize: 18,
+    fontSize: 16, // REDUCIDO de 18
     fontWeight: 'bold',
-    marginBottom: 8, 
+    marginBottom: 5, // REDUCIDO de 8
     color: '#333',
   },
+  pacienteDni: { 
+    fontSize: 14, // REDUCIDO de 15
+    color: '#333',
+    marginBottom: 4, // REDUCIDO de 5
+    fontWeight: '500',
+  },
   pacienteTel: {
-    fontSize: 15,
+    fontSize: 14, // REDUCIDO de 15
     color: '#555',
-    marginBottom: 5, 
+    marginBottom: 4, // REDUCIDO de 5
   },
   pacienteEmail: {
-    fontSize: 14,
+    fontSize: 13, // REDUCIDO de 14
     color: '#777',
   },
   actionsContainer: {
     flexDirection: 'row', 
-    justifyContent: 'flex-end', 
-    marginTop: 15, 
+    justifyContent: 'space-between', 
+    marginTop: 10, // REDUCIDO de 15
     borderTopWidth: 1, 
     borderTopColor: '#ddd', 
-    paddingTop: 15, 
+    paddingTop: 10, // REDUCIDO de 15
   },
   actionButton: {
     flexDirection: 'row', 
     alignItems: 'center',
-    paddingVertical: 8,
+    justifyContent: 'center', 
+    paddingVertical: 8, // REDUCIDO de 10
     paddingHorizontal: 12,
     borderRadius: 8,
-    marginLeft: 10, 
+  },
+  buttonHalfWidth: {
+    width: '48%', 
   },
   editButton: {
     backgroundColor: '#3b82f6', 
@@ -355,24 +436,22 @@ const styles = StyleSheet.create({
     shadowRadius: 5,
     elevation: 8, 
   },
-  // ESTILO DEL BUSCADOR ARMONIZADO
   input: {
     height: 50, 
     borderRadius: 10, 
     paddingHorizontal: 15,
     width: "90%", 
-    backgroundColor: 'rgba(255, 255, 255, 0.9)', // Fondo blanco semitransparente
+    backgroundColor: 'rgba(252, 252, 252, 0.73)', 
     borderWidth: 1, 
-    borderColor: '#1595a6', // Borde color Teal/Verde
-    shadowColor: '#000',
+    borderColor: '#67c4aaff', 
+    shadowColor: '#000000ff',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 1.1,
     shadowRadius: 3,
     elevation: 3,
-    color: '#333', // Asegura que el texto ingresado sea oscuro
+    color: '#333', 
   },
   
-  // --- Estilos para el Modal de Menú ---
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',

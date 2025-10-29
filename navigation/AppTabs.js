@@ -17,7 +17,7 @@ const AnimatedIcon = ({ iconName, size, color, focused }) => {
     useEffect(() => {
         // Ejecutamos la animación de escala cuando el foco cambia
         Animated.spring(scaleAnim, {
-            toValue: focused ? 1.5 : 0.8, // 1.2 para rebote, 1 para estado normal
+            toValue: focused ? 2.3 : 1, // 1.2 para rebote, 1 para estado normal
             friction: 5, // Determina la 'elasticidad' del rebote
             useNativeDriver: true,
         }).start();
@@ -87,7 +87,7 @@ function AppTabs() {
         // 🔑 PROPIEDAD CLAVE: ESTILO DE LAS ETIQUETAS DE TEXTO
         tabBarLabelStyle: {
           fontSize: 13,
-
+          marginTop: 7,
         },
       })}
     >
