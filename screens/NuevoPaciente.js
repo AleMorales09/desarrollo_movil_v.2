@@ -1,22 +1,26 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react'; 
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, StatusBar, Image } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
-// import { auth } from '../src/config/firebaseConfig';
-// import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { LinearGradient } from "expo-linear-gradient";
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import Alert from '../components/Alert';
 import { db } from '../src/config/firebaseConfig';
-import { collection, addDoc } from 'firebase/firestore';
+// MODIFICADO: Agregando query, where, y getDocs para la verificación
+import { collection, addDoc, doc, updateDoc, query, where, getDocs } from 'firebase/firestore'; 
+import { useRoute } from '@react-navigation/native'; 
 
 export default function NuevoPaciente({ navigation }) {
+  const route = useRoute(); 
+  const patientData = route.params?.patientData || null; 
+
+  const [id, setId] = useState(null); 
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [dni, setDni] = useState('');
   const [telefono, setTelefono] = useState('');
-  const [dniError, setDniError] = useState(false); // ⬅️ NUEVO: Estado de error para DNI
-  const [telefonoError, setTelefonoError] = useState(false); // ⬅️ NUEVO: Estado de error para Teléfono
+  const [dniError, setDniError] = useState(false); 
+  const [telefonoError, setTelefonoError] = useState(false); 
   const [direccion, setDireccion] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -36,12 +40,43 @@ export default function NuevoPaciente({ navigation }) {
     }
   );
 
+  useEffect(() => {
+    if (patientData) {
+      setId(patientData.id);
+      setFirstName(patientData.firstName || '');
+      setLastName(patientData.lastName || '');
+      setEmail(patientData.email || '');
+      setDni(patientData.dni || '');
+      setTelefono(patientData.telefono || '');
+      setDireccion(patientData.direccion || '');
+      
+      navigation.setOptions({ title: 'Editar Paciente' });
+    } else {
+      setId(null); 
+      setFirstName('');
+      setLastName('');
+      setEmail('');
+      setDni('');
+      setTelefono('');
+      setDireccion('');
+      navigation.setOptions({ title: 'Nuevo Paciente' });
+    }
+    // Limpiamos los errores al cambiar de modo
+    setFirstNameError(false);
+    setLastNameError(false);
+    setDniError(false);
+    setEmailError(false);
+    setTelefonoError(false);
+
+  }, [patientData, navigation]);
+
+
   const showAlert = (type, title, message) => {
     setAlertConfig({ visible: true, type, title, message });
     if (type === "success") {
       setTimeout(() => {
         setAlertConfig((prev) => ({ ...prev, visible: false }));
-        navigation.reset({ index: 0, routes: [{ name: 'Pacientes' }] });
+        navigation.goBack(); 
       }, 3000);
     }
   };
@@ -50,35 +85,23 @@ export default function NuevoPaciente({ navigation }) {
     setAlertConfig({ ...alertConfig, visible: false });
   };
 
-  // Función para validar que solo contenga letras y espacios
   const validateName = (text) => {
     const nameRegex = /^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]*$/;
     return nameRegex.test(text);
   };
 
-  // const onSend = async () => {
-  //   await addDoc(collection(database, "pacientes"), newItem)
-  // }
-
   const handleDniChange = (text) => {
-    // 🎯 MODIFICACIÓN CLAVE: Filtra cualquier cosa que NO sea un dígito (\D) o usa [^0-9]
     const filteredText = text.replace(/\D/g, ''); 
     setDni(filteredText);
-
-    // La validación en tiempo real de si solo son números ya la haces con el replace.
-    // Aquí podrías agregar una validación de *longitud* si es necesario.
-    // Ejemplo:
-    // setDniError(filteredText.length > 0 && filteredText.length < 7);
+    setDniError(false); // Limpiar error al escribir
   };
 
-  // Función para Teléfono (Solo números)
-  const handleTelefonoChange = (text) => { // ⬅️ NUEVA FUNCIÓN
-    // 🎯 MODIFICACIÓN CLAVE: Filtra cualquier cosa que NO sea un dígito (\D)
+  const handleTelefonoChange = (text) => { 
     const filteredText = text.replace(/\D/g, '');
     setTelefono(filteredText);
+    setTelefonoError(false); // Limpiar error al escribir
   };
     
-  // Función para validar formato de correo
   const validateEmail = (text) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(text);
@@ -87,14 +110,12 @@ export default function NuevoPaciente({ navigation }) {
   const handleAddressChange = (text) => {
     const addressRegex = /[^a-zA-ZáéíóúÁÉÍÓÚñÑ0-9\s.,\/-]/g;
 
-    // Reemplaza todo lo que NO coincida con el patrón (es decir, caracteres especiales) por una cadena vacía.
     const filteredText = text.replace(addressRegex, '');
 
     setDireccion(filteredText); 
   };
 
 
-  // Validar nombre cuando pierde el foco
   const handleFirstNameBlur = () => {
     if (firstName && !validateName(firstName)) {
       setFirstNameError(true);
@@ -103,7 +124,6 @@ export default function NuevoPaciente({ navigation }) {
     }
   };
 
-  // Validar apellido cuando pierde el foco
   const handleLastNameBlur = () => {
     if (lastName && !validateName(lastName)) {
       setLastNameError(true);
@@ -113,7 +133,6 @@ export default function NuevoPaciente({ navigation }) {
   };
 
 
-  // Validar correo cuando pierde el foco
   const handleEmailBlur = () => {
     if (email && !validateEmail(email)) {
       setEmailError(true);
@@ -122,27 +141,34 @@ export default function NuevoPaciente({ navigation }) {
     }
   };
 
+  const handleFirstNameChange = (text) => {
+    const filteredText = text.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]/g, ''); 
+    setFirstName(filteredText);
+    if (filteredText && !validateName(filteredText)) {
+      setFirstNameError(true);
+    } else {
+      setFirstNameError(false);
+    }
+  };
 
-  // Validaciones en tiempo real para la contraseña
-  // const passwordChecks = useMemo(() => ({
-  //   hasCase: /[a-z]/.test(password),
-  //   hasUppercase: /[A-Z]/.test(password),
-  //   hasNumber: /\d/.test(password),
-  //   hasMinLength: password.length >= 6,
-  // }), [password]);
-
-  const passwordsMatch = useMemo(() => {
-    // Solo verificar si ambas contraseñas tienen algún valor y son iguales
-    return password.length > 0 && confirmPassword.length > 0 && password === confirmPassword;
-  }, [password, confirmPassword]);
-
+  const handleLastNameChange = (text) => {
+    const filteredText = text.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]/g, ''); 
+    setLastName(filteredText);
+    if (filteredText && !validateName(filteredText)) {
+      setLastNameError(true);
+    } else {
+      setLastNameError(false);
+    }
+  };
+    
+  // LÓGICA MODIFICADA PARA GUARDAR/ACTUALIZAR CON VERIFICACIÓN DE DNI
   const handleNewPaciente = async () => {
+    // 1. Validaciones de campos obligatorios/formato
     if (!firstName || !lastName || !dni || !email || !telefono || !direccion) {
       showAlert("error", "Error", "Todos los campos son obligatorios.");
       return;
     }
 
-    // Validar nombre y apellido antes de registrar
     if (!validateName(firstName)) {
       setFirstNameError(true);
       showAlert("error", "Error", "El nombre solo debe contener letras.");
@@ -159,7 +185,6 @@ export default function NuevoPaciente({ navigation }) {
       showAlert("error", "DNI Inválido", "El DNI debe tener 8 dígitos.");
       return;
     }
-    // Validar correo antes de registrar
     if (!validateEmail(email)) {
       setEmailError(true);
       showAlert("error", "Error", "El formato del correo electrónico no es válido.");
@@ -170,37 +195,76 @@ export default function NuevoPaciente({ navigation }) {
       showAlert("error", "Teléfono Inválido", "El teléfono debe tener al menos 7 dígitos.");
       return;
     }
-    // if (password !== confirmPassword) {
-    //   showAlert("error", "Error", "Las contraseñas no coinciden.");
-    //   return;
-    // }
-
-    // const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d]{6,}$/;
-    // if (!passwordRegex.test(password)) {
-    //   showAlert(
-    //     "error",
-    //     "Error",
-    //     "La contraseña debe tener al menos 6 caracteres, incluyendo una letra mayúscula, una minúscula y un número."
-    //   );
-    //   return;
-    // }
-
+    
+    // 2. Verificación de DNI duplicado
     try {
+        const pacientesRef = collection(db, "pacientes");
+        // Consulta para buscar pacientes con el mismo DNI
+        const q = query(pacientesRef, where("dni", "==", dni));
+        const querySnapshot = await getDocs(q);
+        
+        // Si encontramos documentos (pacientes con ese DNI)
+        if (!querySnapshot.empty) {
+            
+            // Si estamos en MODO EDICIÓN, verificamos si el DNI es el del paciente actual
+            if (id) {
+                let dniConflict = false;
+                querySnapshot.forEach(doc => {
+                    // Si el DNI encontrado pertenece a otro paciente (ID diferente)
+                    if (doc.id !== id) {
+                        dniConflict = true;
+                    }
+                });
+                
+                if (dniConflict) {
+                    setDniError(true);
+                    showAlert("error", "DNI Duplicado", "Ya existe otro paciente registrado con este número de DNI.");
+                    return;
+                }
+            } else {
+                // MODO CREACIÓN: El DNI ya existe, es un conflicto directo
+                setDniError(true);
+                showAlert("error", "DNI Duplicado", "Ya existe un paciente registrado con este número de DNI.");
+                return;
+            }
+        }
+    } catch (error) {
+        console.error("Error al verificar DNI:", error);
+        showAlert("error", "Error de Base de Datos", "Ocurrió un error al verificar la existencia del DNI. Inténtalo de nuevo.");
+        return;
+    }
 
-      const newPatient = {
+
+    // 3. Proceso de Guardado o Actualización
+    try {
+      const patientDataToSave = {
         nombre: firstName,
         apellido: lastName,
         dni: dni,
         email: email,
         telefono: telefono,
         direccion: direccion,
-        fechaCreacion: new Date(),
       };
 
-      await addDoc(collection(db, "pacientes"), newPatient);
+      if (id) {
+        // Modo Edición: Actualizar documento existente
+        const patientRef = doc(db, "pacientes", id);
+        await updateDoc(patientRef, patientDataToSave);
 
-      showAlert("success", "Paciente Registrado", "El paciente ha sido guardado correctamente.");
+        showAlert("success", "Paciente Actualizado", "El paciente ha sido actualizado correctamente.");
+      } else {
+        // Modo Creación: Agregar nuevo documento
+        const newPatient = {
+            ...patientDataToSave,
+            fechaCreacion: new Date(),
+        };
+        await addDoc(collection(db, "pacientes"), newPatient);
+
+        showAlert("success", "Paciente Registrado", "El paciente ha sido guardado correctamente.");
+      }
       
+      // Limpiar estados
+      // Nota: No limpiamos el ID aquí, se limpia al salir de la pantalla gracias al useEffect
       setFirstName('');
       setLastName('');
       setDni('');
@@ -214,63 +278,19 @@ export default function NuevoPaciente({ navigation }) {
       setTelefonoError(false);
 
     } catch (error) {
-      console.error("Error al guardar el paciente:", error);
-      showAlert("error", "Error al Guardar", "No se pudo guardar el paciente. Inténtalo de nuevo.");
-    }
-
-    //   await createPacienteEmailDni(auth, email, dni);
-    //   showAlert("success", "Paciente Registrado", "El paciente ha sido guardado correctamente.");
-    //   showAlert("success", "Registro exitoso", "Paciente registrado con éxito.");
-    // } catch (error) {
-    //   let errorMessage = "Hubo un problema al registrar el usuario.";
-    //   switch (error.code) {
-    //     case 'auth/email-already-in-use':
-    //       errorMessage = "El correo electrónico ya está en uso.";
-    //       break;
-    //     case 'auth/invalid-email':
-    //       errorMessage = "El formato del correo electrónico no es válido.";
-    //       break;
-    //     // case 'auth/weak-password':
-    //     //   errorMessage = "La contraseña es demasiado débil.";
-    //     //   break;
-    //     case 'auth/network-request-failed':
-    //       errorMessage = "Error de conexión, por favor intenta más tarde.";
-    //       break;
-    //   }
-    //   showAlert("error", "Error", errorMessage);
-    // }
-  };
-
-
-  // --- NUEVA FUNCIÓN PARA MANEJAR EL CAMBIO DE TEXTO DEL NOMBRE ---
-  const handleFirstNameChange = (text) => {
-    const filteredText = text.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]/g, ''); // Elimina números y caracteres especiales
-    setFirstName(filteredText);
-    // Puedes mantener la validación de error en tiempo real o en onBlur
-    if (filteredText && !validateName(filteredText)) {
-      setFirstNameError(true);
-    } else {
-      setFirstNameError(false);
+      console.error("Error al guardar/actualizar el paciente:", error);
+      showAlert("error", "Error al Guardar", "No se pudo guardar/actualizar el paciente. Inténtalo de nuevo.");
     }
   };
 
-  const handleLastNameChange = (text) => {
-    const filteredText = text.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]/g, ''); // Elimina números y caracteres especiales
-    setLastName(filteredText);
-    if (filteredText && !validateName(filteredText)) {
-      setLastNameError(true);
-    } else {
-      setLastNameError(false);
-    }
-  };
+  const buttonText = id ? "ACTUALIZAR" : "GUARDAR"; 
 
-  // --- COMPONENTE AUXILIAR PARA EL MENSAJE DE COINCIDENCIA DE CONTRASEÑAS ---
   const PasswordMatchInfo = ({ meets }) => (
     <View style={styles.passwordMatchContainer}>
       <FontAwesome
-        name={meets ? "check" : "times"} // Check si coinciden, X si no
+        name={meets ? "check" : "times"} 
         size={18}
-        color={meets ? "#05f7c2" : "#ff6b6b"} // Verde si coinciden, rojo si no
+        color={meets ? "#05f7c2" : "#ff6b6b"} 
         style={styles.passwordMatchIcon}
       />
       <Text style={[styles.passwordMatchText, { color: meets ? "#05f7c2" : "#ff6b6b" }]}>
@@ -290,29 +310,19 @@ export default function NuevoPaciente({ navigation }) {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.root}>
-          {/* Degradado de fondo */}
           <LinearGradient
             colors={["#FFFFFF", "#9FE2CF"]}
             style={styles.gradient}
           >
-            {/* Tarjeta blanca que contiene todo el formulario */}
             <View style={styles.card}>
-              <Text style={styles.title}>Registrar nuevo paciente</Text>
+              <Text style={styles.title}>{id ? "Editar paciente" : "Registrar nuevo paciente"}</Text>
               
-              {/* Logo */}
-              {/* <Image
-                source={require("../assets/copia.png")}
-                style={styles.logo}
-                resizeMode="contain"
-              /> */}
-
               <Text style={styles.label}>Nombre</Text>
               <View style={[styles.inputGroup, firstNameError && styles.inputGroupError]}>
                 <TextInput
                   style={styles.input}
                   placeholder="Ingrese el nombre"
                   value={firstName}
-                  // onChangeText={setFirstName}
                   onChangeText={handleFirstNameChange}
                   onBlur={handleFirstNameBlur}
                   placeholderTextColor="#888"
@@ -328,7 +338,6 @@ export default function NuevoPaciente({ navigation }) {
                   style={styles.input}
                   placeholder="Ingrese el apellido"
                   value={lastName}
-                  // onChangeText={setLastName}
                   onChangeText={handleLastNameChange}
                   onBlur={handleLastNameBlur}
                   placeholderTextColor="#888"
@@ -344,9 +353,7 @@ export default function NuevoPaciente({ navigation }) {
                   style={styles.input}
                   placeholder="Ingrese el DNI"
                   value={dni}
-                  // onChangeText={setFirstName}
                   onChangeText={handleDniChange}
-                  // onBlur={handleFirstNameBlur}
                   placeholderTextColor="#888"
                   keyboardType="numeric"
                 />
@@ -376,80 +383,10 @@ export default function NuevoPaciente({ navigation }) {
                   placeholder="Ingrese el teléfono"
                   value={telefono}
                   onChangeText={handleTelefonoChange}
-                  // secureTextEntry={!showPassword}
-                  // onFocus={() => setShowPasswordInfo(true)}
-                  // onBlur={() => setShowPasswordInfo(false)}
                   placeholderTextColor="#888"
                   keyboardType="numeric"
                 />
-                {/* <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeButton}>
-                  <FontAwesome name={showPassword ? "eye-slash" : "eye"} size={18} color="#555" />
-                </TouchableOpacity> */}
               </View>
-
-              {/* Tarjeta de requisitos de contraseña */}
-              {/* {showPasswordInfo && (
-                <View style={styles.passwordCard}>
-                  <Text style={styles.passwordCardTitle}>Requisitos de contraseña:</Text>
-                    <View style={styles.passwordCheckRow}>
-                    <FontAwesome
-                      name="check"
-                      size={18}
-                      color={passwordChecks.hasMinLength ? "#05f7c2" : "#ccc"}
-                      style={styles.passwordCheckIcon}
-                    />
-                    <Text style={[
-                      styles.passwordCheckText,
-                      passwordChecks.hasMinLength && styles.passwordCheckTextValid
-                    ]}>
-                      Mínimo 6 caracteres
-                    </Text>
-                  </View>
-                  <View style={styles.passwordCheckRow}>
-                    <FontAwesome
-                      name="check"
-                      size={18}
-                      color={passwordChecks.hasUppercase ? "#05f7c2" : "#ccc"}
-                      style={styles.passwordCheckIcon}
-                    />
-                    <Text style={[
-                      styles.passwordCheckText,
-                      passwordChecks.hasCase && styles.passwordCheckTextValid
-                    ]}>
-                      Al menos una letra minúscula
-                    </Text>
-                  </View>                 
-                  <View style={styles.passwordCheckRow}>
-                    <FontAwesome
-                      name="check"
-                      size={18}
-                      color={passwordChecks.hasUppercase ? "#05f7c2" : "#ccc"}
-                      style={styles.passwordCheckIcon}
-                    />
-                    <Text style={[
-                      styles.passwordCheckText,
-                      passwordChecks.hasUppercase && styles.passwordCheckTextValid
-                    ]}>
-                      Al menos una letra mayúscula
-                    </Text>
-                  </View>
-                  <View style={styles.passwordCheckRow}>
-                    <FontAwesome
-                      name="check"
-                      size={18}
-                      color={passwordChecks.hasNumber ? "#05f7c2" : "#ccc"}
-                      style={styles.passwordCheckIcon}
-                    />
-                    <Text style={[
-                      styles.passwordCheckText,
-                      passwordChecks.hasNumber && styles.passwordCheckTextValid
-                    ]}>
-                      Al menos un número
-                    </Text>
-                  </View>
-
-                </View>
-              )} */}
     
 
               <Text style={styles.label}>Dirección</Text>
@@ -459,34 +396,13 @@ export default function NuevoPaciente({ navigation }) {
                   placeholder="Ingrese la dirección"
                   value={direccion}
                   onChangeText={handleAddressChange}
-                  // secureTextEntry={!showConfirmPassword}
-                  //onFocus={() => setShowPasswordInfo(false)}
                   placeholderTextColor="#888"
-                  // onFocus={() => setShowPasswordMatchInfo(true)} // Mostrar al enfocar
-                  // onBlur={() => setShowPasswordMatchInfo(false)} // Ocultar al perder el foco
-                  //placeholderTextColor="#888"
                 />
-                {/* <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)} style={styles.eyeButton}>
-                  <FontAwesome name={showConfirmPassword ? "eye-slash" : "eye"} size={18} color="#555" />
-                </TouchableOpacity> */}
               </View>
-    
-                {/* --- NUEVO: Aviso de Contraseñas Coincidentes --- */}
-                {/* {showPasswordMatchInfo && (confirmPassword.length > 0) && ( // Solo mostrar si hay texto en confirmar contraseña
-                  <PasswordMatchInfo meets={passwordsMatch} /> )}
-                
-                {confirmPassword.length === 0 && <View style={{marginBottom: 10}}/>} */}
 
               <TouchableOpacity style={styles.button} onPress={handleNewPaciente}>
-                <Text style={styles.buttonText}>GUARDAR</Text>
+                <Text style={styles.buttonText}>{buttonText}</Text>
               </TouchableOpacity>
-
-              {/* <TouchableOpacity onPress={() => navigation.navigate('Login')}>
-                <Text style={styles.signUpText}>
-                  ¿Ya tenés cuenta?{" "}
-                  <Text style={styles.subtitle}>Inicia sesión</Text>
-                </Text>
-              </TouchableOpacity> */}
             </View>
           </LinearGradient>
         </View>
@@ -639,13 +555,12 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
 
-  // --- NUEVOS ESTILOS PARA LA COINCIDENCIA DE CONTRASEÑAS ---
   passwordMatchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12, // Espacio después del mensaje
-    marginTop: -5, // Para que esté más cerca del input
-    paddingHorizontal: 10, // Alinear con el input
+    marginBottom: 12, 
+    marginTop: -5, 
+    paddingHorizontal: 10, 
   },
   passwordMatchIcon: {
     marginRight: 8,

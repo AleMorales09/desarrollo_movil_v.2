@@ -8,16 +8,19 @@ import {
     StatusBar, 
     TextInput, 
     Modal, 
-    ActivityIndicator 
+    ActivityIndicator,
+    Alert // <--- NUEVO: Para la confirmación de eliminación
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, FontAwesome, MaterialCommunityIcons } from '@expo/vector-icons'; 
 import { db } from '../src/config/firebaseConfig'; 
-import { collection, getDocs } from 'firebase/firestore'; 
+// MODIFICADO: Agregando doc y deleteDoc para la eliminación
+import { collection, getDocs, doc, deleteDoc } from 'firebase/firestore'; 
 
 // ==========================================================
 // Componente para el menú modal (opciones de navegación)
 // ==========================================================
+// ... (MenuModal component remains the same)
 const MenuModal = ({ visible, onClose, navigation }) => {
   const menuOptions = [
     { name: 'Inicio', screen: 'Home', isTab: true, icon: 'home-outline' },
@@ -30,22 +33,18 @@ const MenuModal = ({ visible, onClose, navigation }) => {
   const handleNavigate = (option) => {
     onClose();
     
-    // Si la opción es Turnos o Pacientes, navega directamente al Stack.
     if (option.name === 'Turnos' || option.name === 'Pacientes') { 
         navigation.navigate(option.screen);
     } 
-    // Para Home y Perfil (que están en el Tab Navigator 'App').
     else if (option.isTab) {
         navigation.navigate('App', { screen: option.screen });
     }
-    // Para Personal y Tratamientos (que asumimos que son rutas del Stack o Tab ocultas dentro de 'App').
     else {
         navigation.navigate('App', { screen: option.screen }); 
     }
   };
 
   const getIconComponent = (option) => {
-    // Usamos MaterialCommunityIcons para 'Personal' y Ionicons para los demás
     if (option.name === 'Personal') {
         return <MaterialCommunityIcons name={option.icon} size={24} color="#3b82f6" />;
     }
@@ -81,20 +80,21 @@ const MenuModal = ({ visible, onClose, navigation }) => {
 // ==========================================================
 // Componente individual para cada tarjeta de paciente
 // ==========================================================
-const PacienteCard = ({ nombreCompletoDisplay, dni, telefono, correo, id }) => ( // <-- MODIFICADO: Usamos nombreCompletoDisplay
-  <View style={[styles.pacienteCard, styles.pacienteCardGlow]}>
-    {/* Muestra el nombre en formato: APELLIDO, Nombre */}
-    <Text style={styles.pacienteNombre}>{nombreCompletoDisplay}</Text> 
+// MODIFICADO: Ahora acepta el objeto patient completo, onEdit y onDelete
+const PacienteCard = ({ patient, onEdit, onDelete }) => ( 
+  <View style={[styles.turnoCard, styles.pacienteCardGlow]}>
+    {/* Usa la propiedad de display formateada (APELLIDO, Nombre) */}
+    <Text style={styles.pacienteNombre}>{patient.nombreCompletoDisplay}</Text> 
     
-    <Text style={styles.pacienteDni}>DNI: {dni || 'No especificado'}</Text> 
-    <Text style={styles.pacienteTel}>Teléfono: {telefono}</Text>
-    <Text style={styles.pacienteEmail}>Email: {correo}</Text>
+    <Text style={styles.pacienteDni}>DNI: {patient.dni || 'No especificado'}</Text> 
+    <Text style={styles.pacienteTel}>Teléfono: {patient.telefono}</Text>
+    <Text style={styles.pacienteEmail}>Email: {patient.correo}</Text>
 
     {/* Contenedor para los botones de acción */}
     <View style={styles.actionsContainer}>
       <TouchableOpacity 
         style={[styles.actionButton, styles.editButton, styles.buttonHalfWidth]} 
-        onPress={() => console.log('Editar paciente:', id)} 
+        onPress={() => onEdit(patient)} // Llama a onEdit con todos los datos
       >
         <FontAwesome name="edit" size={18} color="#fff" />
         <Text style={styles.buttonText}>Editar</Text>
@@ -102,7 +102,7 @@ const PacienteCard = ({ nombreCompletoDisplay, dni, telefono, correo, id }) => (
 
       <TouchableOpacity 
         style={[styles.actionButton, styles.deleteButton, styles.buttonHalfWidth]} 
-        onPress={() => console.log('Eliminar paciente:', id)} 
+        onPress={() => onDelete(patient.id, patient.nombreCompletoDisplay)} // Llama a onDelete con ID y nombre
       >
         <FontAwesome name="trash" size={18} color="#fff" />
         <Text style={styles.buttonText}>Eliminar</Text>
@@ -175,20 +175,21 @@ export default function Pacientes({ navigation }) {
         const nombre = data.nombre || '';
 
         return {
-          id: doc.id,
-          apellido: apellido, // Para ordenar
-          nombreCompletoBusqueda: `${nombre} ${apellido}`.trim(), // Para búsqueda
-          // Formato requerido: APELLIDO, Nombre
-          nombreCompletoDisplay: `${apellido.toUpperCase()}, ${nombre}`, 
+          id: doc.id, // <-- CLAVE: El ID del documento para editar/eliminar
+          apellido: apellido, 
+          nombre: nombre, // Para pre-cargar el formulario
           dni: data.dni || '',
-          telefono: data.telefono || 'No especificado',
-          correo: data.email || 'No especificado',
+          email: data.email || '', // Para pre-cargar el formulario
+          telefono: data.telefono || '', // Para pre-cargar el formulario
+          direccion: data.direccion || '', // Para pre-cargar el formulario
+          nombreCompletoBusqueda: `${nombre} ${apellido}`.trim(), 
+          nombreCompletoDisplay: `${apellido.toUpperCase()}, ${nombre}`, 
+          correo: data.email || 'No especificado', // Para mostrar en la tarjeta
         };
       });
 
       // 1. Ordenamiento por Apellido (alfabético)
       list.sort((a, b) => {
-        // localeCompare es más robusto para caracteres especiales (ñ, tildes)
         return a.apellido.localeCompare(b.apellido);
       });
       
@@ -203,9 +204,66 @@ export default function Pacientes({ navigation }) {
   }, []); 
 
   useEffect(() => {
+    // Al montar el componente o cuando fetchPacientes cambie (solo al inicio)
     fetchPacientes();
-  }, [fetchPacientes]); 
+    
+    // Agregamos un listener para recargar la lista cuando se regrese de NuevoPaciente (después de guardar/actualizar)
+    const unsubscribe = navigation.addListener('focus', () => {
+        fetchPacientes();
+    });
 
+    return unsubscribe; // Limpia el listener al desmontar
+  }, [fetchPacientes, navigation]); 
+
+  // NUEVO: Función para manejar la edición
+  const handleEdit = (patient) => {
+    // Navega a NuevoPaciente, pasando todos los datos del paciente
+    navigation.navigate('NuevoPaciente', { 
+        patientData: {
+            id: patient.id,
+            firstName: patient.nombre,
+            lastName: patient.apellido,
+            email: patient.email,
+            dni: patient.dni,
+            telefono: patient.telefono,
+            direccion: patient.direccion,
+        }
+    });
+  };
+
+  // NUEVO: Función para manejar la eliminación
+  const handleDelete = (id, nombreCompleto) => {
+    Alert.alert(
+      "Confirmar Eliminación",
+      `¿Estás seguro de que deseas eliminar a ${nombreCompleto}? Esta acción no se puede deshacer.`,
+      [
+        {
+          text: "Cancelar",
+          style: "cancel"
+        },
+        { 
+          text: "Eliminar", 
+          onPress: async () => {
+            try {
+              setIsLoading(true);
+              const pacienteRef = doc(db, "pacientes", id);
+              await deleteDoc(pacienteRef);
+              console.log("Paciente eliminado con ID:", id);
+              // Recargar la lista después de la eliminación exitosa
+              await fetchPacientes(); 
+              Alert.alert("Éxito", "Paciente eliminado correctamente.");
+            } catch (error) {
+              console.error("Error al eliminar paciente:", error);
+              Alert.alert("Error", "No se pudo eliminar el paciente. Inténtalo de nuevo.");
+              setIsLoading(false); 
+            }
+          },
+          style: 'destructive'
+        }
+      ]
+    );
+  };
+  
   // Función para manejar la búsqueda en tiempo real
   const handleSearch = (text) => {
     setSearchText(text);
@@ -214,7 +272,7 @@ export default function Pacientes({ navigation }) {
       const lowercasedText = text.toLowerCase();
       
       const newFilteredData = pacientesData.filter(item => { 
-        // Búsqueda por Nombre, Apellido (incluidos en nombreCompletoBusqueda) y DNI
+        // Búsqueda por Nombre, Apellido y DNI
         return (
           item.nombreCompletoBusqueda.toLowerCase().includes(lowercasedText) ||
           (item.dni && item.dni.includes(text)) 
@@ -222,7 +280,6 @@ export default function Pacientes({ navigation }) {
       });
       setFilteredData(newFilteredData);
     } else {
-      // Si el campo de búsqueda está vacío, muestra la lista completa
       setFilteredData(pacientesData); 
     }
   };
@@ -231,7 +288,7 @@ export default function Pacientes({ navigation }) {
   if (isLoading && filteredData.length === 0) {
     return (
         <LinearGradient 
-          colors={['#20d3c4ff', '#ab9fe2ff']} 
+          colors={['#20d3c4ff', '#9FE2CF']} 
           style={[styles.contenedorHeader, {justifyContent: 'center', alignItems: 'center'}]}
         >
             <ActivityIndicator size="large" color="#fff" />
@@ -248,7 +305,6 @@ export default function Pacientes({ navigation }) {
       {/* Header Superior */}
       <View style={styles.header}>
         <Text style={styles.welcomeText}>Pacientes</Text>
-        {/* BOTÓN PARA ABRIR EL MENÚ MODAL */}
         <TouchableOpacity 
           style={styles.menuButton} 
           onPress={() => setIsMenuVisible(true)}
@@ -259,7 +315,7 @@ export default function Pacientes({ navigation }) {
 
       {/* Contenedor de Contenido */}
       <View style={styles.contentContainer}>
-        <View style={styles.pacientesHeader}>
+        <View style={styles.turnosHeader}>
               <TextInput
                 style={styles.input}
                 placeholder= "Buscar paciente (Nombre, Apellido o DNI)" 
@@ -272,13 +328,19 @@ export default function Pacientes({ navigation }) {
         </View>
 
         {/* Lista de Pacientes */}
-        <LinearGradient colors={['#ffffffff', '#67c4aaff']} style={styles.gradientPacientesList}>
+        <LinearGradient colors={['#9FE2CF', '#FFFFFF']} style={styles.gradientTurnosList}>
           <FlatList
-            // Le pasamos la nueva propiedad nombreCompletoDisplay
             data={filteredData} 
-            renderItem={({ item }) => <PacienteCard {...item} nombreCompletoDisplay={item.nombreCompletoDisplay} />}
+            renderItem={({ item }) => (
+                // MODIFICADO: Pasamos el objeto paciente completo y los handlers
+                <PacienteCard 
+                    patient={item} 
+                    onEdit={handleEdit}
+                    onDelete={handleDelete}
+                />
+            )}
             keyExtractor={item => item.id}
-            contentContainerStyle={styles.pacientesList}
+            contentContainerStyle={styles.turnosList}
             showsVerticalScrollIndicator={false} 
             ListEmptyComponent={() => renderEmptyList(searchText, isLoading)} 
           />
@@ -313,8 +375,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 10,
-    paddingTop: 30, 
+    paddingVertical: 30,
+    paddingTop: 50, 
     backgroundColor: 'transparent', 
   },
   welcomeText: {
@@ -333,34 +395,35 @@ const styles = StyleSheet.create({
     overflow: 'hidden', 
     marginTop: 1, 
   },
-  pacientesHeader: {
+  turnosHeader: {
     paddingVertical: 20,
     alignItems: 'center',
     marginBottom: 1,
     backgroundColor: 'transparent', 
   },
-  gradientPacientesList: {
+  gradientTurnosList: {
     paddingVertical: 2,
     alignItems: 'center',
     flex: 1,
   },
-  pacientesList: {
+  turnosList: {
     paddingHorizontal: '5%', 
     paddingBottom: 20, 
-    width: '90%', 
+    width: '100%', 
   },
-  // --- MODIFICADO: Reducción de tamaño de tarjeta ---
-  pacienteCard: {
+  turnoCard: {
     backgroundColor: '#fff',
     borderRadius: 12,
-    padding: 15, // REDUCIDO de 25
-    marginBottom: 12, // REDUCIDO de 15
+    padding: 15, 
+    marginTop: 5,
+    marginBottom: 5, 
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 4,
-    width: "100%", 
+    width: "90%",
+    alignSelf: 'center'
   },
   pacienteCardGlow: {
     borderLeftWidth: 6,
@@ -369,39 +432,39 @@ const styles = StyleSheet.create({
     overflow: 'hidden', 
   },
   pacienteNombre: {
-    fontSize: 16, // REDUCIDO de 18
+    fontSize: 16, 
     fontWeight: 'bold',
-    marginBottom: 5, // REDUCIDO de 8
+    marginBottom: 5, 
     color: '#333',
   },
   pacienteDni: { 
-    fontSize: 14, // REDUCIDO de 15
+    fontSize: 14, 
     color: '#333',
-    marginBottom: 4, // REDUCIDO de 5
+    marginBottom: 4, 
     fontWeight: '500',
   },
   pacienteTel: {
-    fontSize: 14, // REDUCIDO de 15
+    fontSize: 14, 
     color: '#555',
-    marginBottom: 4, // REDUCIDO de 5
+    marginBottom: 4, 
   },
   pacienteEmail: {
-    fontSize: 13, // REDUCIDO de 14
+    fontSize: 13, 
     color: '#777',
   },
   actionsContainer: {
     flexDirection: 'row', 
     justifyContent: 'space-between', 
-    marginTop: 10, // REDUCIDO de 15
+    marginTop: 10, 
     borderTopWidth: 1, 
     borderTopColor: '#ddd', 
-    paddingTop: 10, // REDUCIDO de 15
+    paddingTop: 10, 
   },
   actionButton: {
     flexDirection: 'row', 
     alignItems: 'center',
     justifyContent: 'center', 
-    paddingVertical: 8, // REDUCIDO de 10
+    paddingVertical: 8, 
     paddingHorizontal: 12,
     borderRadius: 8,
   },
@@ -441,12 +504,12 @@ const styles = StyleSheet.create({
     borderRadius: 10, 
     paddingHorizontal: 15,
     width: "90%", 
-    backgroundColor: 'rgba(252, 252, 252, 0.73)', 
+    backgroundColor: 'rgba(255, 255, 255, 0.9)', 
     borderWidth: 1, 
-    borderColor: '#67c4aaff', 
-    shadowColor: '#000000ff',
+    borderColor: '#1595a6', 
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 1.1,
+    shadowOpacity: 0.1,
     shadowRadius: 3,
     elevation: 3,
     color: '#333', 
