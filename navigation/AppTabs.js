@@ -71,7 +71,7 @@ function AppTabs() {
         // 🔑 PROPIEDAD CLAVE: ESTILO DEL CONTENEDOR DE LA BARRA
         tabBarStyle: {
           backgroundColor: '#f5f2f2ff',
-          borderTopWidth: 0,
+          //borderTopWidth: 2,
           paddingBottom: 1,  
           height: 60,
           position: 'absolute',
@@ -80,6 +80,8 @@ function AppTabs() {
           borderRadius: 16,
           justifyContent: 'center',
           alignItems: 'center',
+          borderWidth: 2,
+          borderColor: '#05f7c2',
         },
         
         // 🔑 PROPIEDAD CLAVE: ESTILO DE LAS ETIQUETAS DE TEXTO

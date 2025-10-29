@@ -1283,7 +1283,7 @@ const styles = StyleSheet.create({
         height: '100%'
     },
     mainTitle: {
-        backgroundColor: "#05f7c2",
+        //backgroundColor: "#05f7c2",
         fontSize: 28,
         fontWeight: "bold",
         color: "#222",
@@ -1293,6 +1293,8 @@ const styles = StyleSheet.create({
         borderBottomLeftRadius: 20,
         borderBottomRightRadius: 20,
         margin: '-4%',
+        borderWidth: 1.5, // Borde nuevo
+        borderColor: '#05f7c2', // Color verde agua
 
     },
     cardContainer: {
