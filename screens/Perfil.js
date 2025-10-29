@@ -1119,7 +1119,8 @@ export default function Perfil({ navigation }) {
           enableAutomaticScroll={true}
           keyboardShouldPersistTaps="handled" 
         >
-          <LinearGradient colors={["#FFFFFF", "#9FE2CF"]} style={styles.gradientBackground}>
+          <LinearGradient colors={["#FFFFFF", "#67c4aaff"]} 
+          style={styles.gradientBackground}>
               <Text style={styles.mainTitle}>Mi Perfil</Text>
               
               <View style={styles.cardContainer}>
@@ -1279,6 +1280,7 @@ const styles = StyleSheet.create({
         paddingTop: 40,
         paddingBottom: 40,
         alignItems: "center",
+        height: '100%'
     },
     mainTitle: {
         backgroundColor: "#05f7c2",
@@ -1288,25 +1290,27 @@ const styles = StyleSheet.create({
         marginBottom: 20,
         textAlign: "center",
         width: "100%",
-        borderRadius: 12,
+        borderBottomLeftRadius: 20,
+        borderBottomRightRadius: 20,
+        margin: '-4%',
 
     },
     cardContainer: {
         width: "100%",
-        maxWidth: 450,
+        
     },
     // TARJETA: Con borde verde agua
     card: {
       width: "100%",
       backgroundColor: "#FFFFFF",
       borderRadius: 12,
-      padding: 20,
+      padding: '3%',
       elevation: 4,
       shadowColor: "#000",
       shadowOffset: { width: 0, height: 2 },
       shadowOpacity: 0.1,
       shadowRadius: 5,
-      marginBottom: 25,
+      marginBottom: '7%',
       borderWidth: 1.5, // Borde nuevo
       borderColor: '#05f7c2', // Color verde agua
     },
@@ -1315,17 +1319,17 @@ const styles = StyleSheet.create({
       fontSize: 20,
       fontWeight: "700",
       color: "#444",
-      marginBottom: 15,
-      borderBottomWidth: 2, // Aumento de grosor
+      marginBottom: 10,
+      borderBottomWidth: 3, // Aumento de grosor
       borderBottomColor: '#05f7c2', // Color verde agua
-      paddingBottom: 10,
+      paddingBottom: 1,
     },
     
     // --- ESTILOS DE FOTO DE PERFIL (sin cambios) ---
     avatarContainer: {
       alignItems: 'center',
-      marginBottom: 20,
-      marginTop: 5,
+      marginBottom: 2,
+      marginTop: 2,
     },
     avatar: {
       width: 120,
@@ -1350,8 +1354,8 @@ const styles = StyleSheet.create({
     avatarEditButton: {
       position: 'absolute',
       bottom: 0,
-      right: "69%", 
-      transform: [{ translateX: 30 }],
+      right: "70%", 
+      transform: [{ translateX: '100%' }],
       elevation: 5,
     },
     avatarEditButtonGradient: {
@@ -1452,7 +1456,7 @@ const styles = StyleSheet.create({
       flexDirection: 'row',
       alignItems: "center",
       justifyContent: "center",
-      paddingVertical: 12,
+      paddingVertical: 8,
       borderRadius: 25,
       marginTop: 20,
       marginBottom: 10, 
@@ -1466,13 +1470,12 @@ const styles = StyleSheet.create({
     // Botón Cerrar Sesión (Reposicionado)
     logoutButton: {
       backgroundColor: "#ff6b6b", 
-      paddingVertical: 14, 
+      paddingVertical: 8, 
       borderRadius: 25,
       alignItems: "center",
-      marginTop: 20, 
-      marginBottom: 30, 
-      width: '85%',
-      maxWidth: 400,
+      marginTop: '4%', 
+      marginBottom: '0%', 
+      width: '80%',
       elevation: 4,
     },
     logoutButtonText: {

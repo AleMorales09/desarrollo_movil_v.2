@@ -40,6 +40,7 @@ function AppTabs() {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
+        
         tabBarIcon: ({ focused, color, size }) => {
           let iconName;
 
@@ -69,16 +70,22 @@ function AppTabs() {
         
         // 🔑 PROPIEDAD CLAVE: ESTILO DEL CONTENEDOR DE LA BARRA
         tabBarStyle: {
-          backgroundColor: '#1f1f1f',
+          backgroundColor: '#f5f2f2ff',
           borderTopWidth: 0,
-          paddingBottom: insets.bottom + 5, 
-          height: 45 + insets.bottom, 
+          paddingBottom: 1,  
+          height: 60,
+          position: 'absolute',
+          margin: 25,
+          marginBottom: 38,
+          borderRadius: 16,
+          justifyContent: 'center',
+          alignItems: 'center',
         },
         
         // 🔑 PROPIEDAD CLAVE: ESTILO DE LAS ETIQUETAS DE TEXTO
         tabBarLabelStyle: {
-          fontSize: 12,
-          fontWeight: '600',
+          fontSize: 13,
+
         },
       })}
     >
