@@ -107,15 +107,27 @@ export default function SignUp({ navigation }) {
     }
 
     // Validar nombre y apellido antes de registrar
-    if (!validateName(trimmedFirstName)) {
+//     if (!validateName(trimmedFirstName)) {
+//       setFirstNameError(true);
+//       showAlert("error", "Error", "El nombre solo debe contener letras.");
+//       return;
+//     }
+
+    if (trimmedFirstName.length < 2) {
       setFirstNameError(true);
-      showAlert("error", "Error", "El nombre solo debe contener letras.");
+      showAlert("error", "Error", "El nombre es demasiado corto.");
       return;
     }
 
-    if (!validateName(trimmedLastName)) {
+//     if (!validateName(trimmedLastName)) {
+//       setLastNameError(true);
+//       showAlert("error", "Error", "El apellido solo debe contener letras.");
+//       return;
+//     }
+
+    if (trimmedLastName.length < 2) {
       setLastNameError(true);
-      showAlert("error", "Error", "El apellido solo debe contener letras.");
+      showAlert("error", "Error", "El apellido es demasiado corto.");
       return;
     }
 
@@ -266,10 +278,11 @@ export default function SignUp({ navigation }) {
                   onChangeText={handleFirstNameChange}
                   onBlur={handleFirstNameBlur}
                   placeholderTextColor="#888"
+                  maxLength={30}
                 />
               </View>
               {firstNameError && (
-                <Text style={styles.errorText}>El nombre solo debe contener letras</Text>
+                <Text style={styles.errorText}>El nombre es demasiado corto</Text>
               )}
 
               <Text style={styles.label}>Apellido</Text>
@@ -282,10 +295,11 @@ export default function SignUp({ navigation }) {
                   onChangeText={handleLastNameChange}
                   onBlur={handleLastNameBlur}
                   placeholderTextColor="#888"
+                  maxLength={30}
                 />
               </View>
               {lastNameError && (
-                <Text style={styles.errorText}>El apellido solo debe contener letras</Text>
+                <Text style={styles.errorText}>El apellido es demasiado corto</Text>
               )}
 
               <Text style={styles.label}>Correo</Text>
@@ -299,6 +313,7 @@ export default function SignUp({ navigation }) {
                   keyboardType="email-address"
                   autoCapitalize="none"
                   placeholderTextColor="#888"
+                  maxLength={50}
                 />
               </View>
               {emailError && (
@@ -316,6 +331,7 @@ export default function SignUp({ navigation }) {
                   onFocus={() => setShowPasswordInfo(true)}
                   onBlur={() => setShowPasswordInfo(false)}
                   placeholderTextColor="#888"
+                  maxLength={12}
                 />
                 <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeButton}>
                   <FontAwesome name={showPassword ? "eye-slash" : "eye"} size={18} color="#555" />
@@ -399,6 +415,7 @@ export default function SignUp({ navigation }) {
                   onFocus={() => setShowPasswordMatchInfo(true)} // Mostrar al enfocar
                   onBlur={() => setShowPasswordMatchInfo(false)} // Ocultar al perder el foco
                   //placeholderTextColor="#888"
+                  maxLength={12}
                 />
                 <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)} style={styles.eyeButton}>
                   <FontAwesome name={showConfirmPassword ? "eye-slash" : "eye"} size={18} color="#555" />

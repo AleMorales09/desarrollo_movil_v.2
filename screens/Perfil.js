@@ -1288,11 +1288,12 @@ const styles = StyleSheet.create({
         fontWeight: "bold",
         color: "#222",
         marginBottom: 20,
+        marginTop: 0,
         textAlign: "center",
         width: "100%",
         borderBottomLeftRadius: 20,
         borderBottomRightRadius: 20,
-        margin: '-4%',
+        //margin: '-4%',
         borderWidth: 1.5, // Borde nuevo
         borderColor: '#05f7c2', // Color verde agua
 

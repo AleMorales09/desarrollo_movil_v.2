@@ -9,18 +9,20 @@ import {
     TextInput, 
     Modal, 
     ActivityIndicator,
-    Alert // <--- NUEVO: Para la confirmación de eliminación
+    // Eliminamos Alert de react-native para usar el personalizado
+    // Alert 
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, FontAwesome, MaterialCommunityIcons } from '@expo/vector-icons'; 
 import { db } from '../src/config/firebaseConfig'; 
-// MODIFICADO: Agregando doc y deleteDoc para la eliminación
 import { collection, getDocs, doc, deleteDoc } from 'firebase/firestore'; 
+
+// Importamos el componente de Alerta personalizada 
+import CustomAlert from '../components/Alert'; 
 
 // ==========================================================
 // Componente para el menú modal (opciones de navegación)
 // ==========================================================
-// ... (MenuModal component remains the same)
 const MenuModal = ({ visible, onClose, navigation }) => {
   const menuOptions = [
     { name: 'Inicio', screen: 'Home', isTab: true, icon: 'home-outline' },
@@ -80,21 +82,26 @@ const MenuModal = ({ visible, onClose, navigation }) => {
 // ==========================================================
 // Componente individual para cada tarjeta de paciente
 // ==========================================================
-// MODIFICADO: Ahora acepta el objeto patient completo, onEdit y onDelete
-const PacienteCard = ({ patient, onEdit, onDelete }) => ( 
+const PacienteCard = ({ patient, onViewDetails, onEdit, onDelete }) => ( 
   <View style={[styles.turnoCard, styles.pacienteCardGlow]}>
-    {/* Usa la propiedad de display formateada (APELLIDO, Nombre) */}
-    <Text style={styles.pacienteNombre}>{patient.nombreCompletoDisplay}</Text> 
     
-    <Text style={styles.pacienteDni}>DNI: {patient.dni || 'No especificado'}</Text> 
-    <Text style={styles.pacienteTel}>Teléfono: {patient.telefono}</Text>
-    <Text style={styles.pacienteEmail}>Email: {patient.correo}</Text>
+    <TouchableOpacity 
+        style={styles.cardContent} 
+        onPress={() => onViewDetails(patient)} 
+        activeOpacity={0.7} 
+    >
+        <Text style={styles.pacienteNombre}>{patient.nombreCompletoDisplay}</Text> 
+        
+        <Text style={styles.pacienteDni}>DNI: {patient.dni || 'No especificado'}</Text> 
+        <Text style={styles.pacienteTel}>Teléfono: {patient.telefono}</Text>
+        <Text style={styles.pacienteEmail}>Email: {patient.correo}</Text>
+    </TouchableOpacity>
 
     {/* Contenedor para los botones de acción */}
     <View style={styles.actionsContainer}>
       <TouchableOpacity 
         style={[styles.actionButton, styles.editButton, styles.buttonHalfWidth]} 
-        onPress={() => onEdit(patient)} // Llama a onEdit con todos los datos
+        onPress={() => onEdit(patient)} 
       >
         <FontAwesome name="edit" size={18} color="#fff" />
         <Text style={styles.buttonText}>Editar</Text>
@@ -102,7 +109,7 @@ const PacienteCard = ({ patient, onEdit, onDelete }) => (
 
       <TouchableOpacity 
         style={[styles.actionButton, styles.deleteButton, styles.buttonHalfWidth]} 
-        onPress={() => onDelete(patient.id, patient.nombreCompletoDisplay)} // Llama a onDelete con ID y nombre
+        onPress={() => onDelete(patient.id, patient.nombreCompletoDisplay)} 
       >
         <FontAwesome name="trash" size={18} color="#fff" />
         <Text style={styles.buttonText}>Eliminar</Text>
@@ -133,7 +140,7 @@ const renderEmptyList = (searchText, isLoading) => {
           No se encontró "{searchText}".
         </Text>
         <Text style={styles.emptyListSubText}>
-          Verifica la escritura o registra un nuevo paciente.
+          Verificá la escritura o registrá un nuevo paciente.
         </Text>
       </View>
     );
@@ -162,6 +169,16 @@ export default function Pacientes({ navigation }) {
   const [filteredData, setFilteredData] = useState([]); 
   const [isLoading, setIsLoading] = useState(true); 
 
+  // ESTADOS PARA LA ALERTA PERSONALIZADA
+  const [alertConfig, setAlertConfig] = useState({
+    visible: false,
+    type: "error", 
+    title: "",
+    message: "",
+    showCancel: false, // <-- CORREGIDO: Usar showCancel, el prop que tu Alert.js espera
+  });
+  const [patientToDelete, setPatientToDelete] = useState(null); // Almacena id y nombre
+
   // Función para obtener pacientes de Firestore
   const fetchPacientes = useCallback(async () => {
     setIsLoading(true);
@@ -175,16 +192,16 @@ export default function Pacientes({ navigation }) {
         const nombre = data.nombre || '';
 
         return {
-          id: doc.id, // <-- CLAVE: El ID del documento para editar/eliminar
+          id: doc.id, 
           apellido: apellido, 
-          nombre: nombre, // Para pre-cargar el formulario
+          nombre: nombre, 
           dni: data.dni || '',
-          email: data.email || '', // Para pre-cargar el formulario
-          telefono: data.telefono || '', // Para pre-cargar el formulario
-          direccion: data.direccion || '', // Para pre-cargar el formulario
+          email: data.email || '', 
+          telefono: data.telefono || '', 
+          direccion: data.direccion || '', 
           nombreCompletoBusqueda: `${nombre} ${apellido}`.trim(), 
           nombreCompletoDisplay: `${apellido.toUpperCase()}, ${nombre}`, 
-          correo: data.email || 'No especificado', // Para mostrar en la tarjeta
+          correo: data.email || 'No especificado', 
         };
       });
 
@@ -198,26 +215,93 @@ export default function Pacientes({ navigation }) {
 
     } catch (error) {
       console.error("Error al cargar pacientes:", error);
+      // Aseguramos que el error muestre una alerta de 1 botón y no rompa el flujo
+      showAlert("error", "Error de Carga", "No se pudieron cargar los pacientes.", false);
     } finally {
       setIsLoading(false);
     }
   }, []); 
 
   useEffect(() => {
-    // Al montar el componente o cuando fetchPacientes cambie (solo al inicio)
     fetchPacientes();
     
-    // Agregamos un listener para recargar la lista cuando se regrese de NuevoPaciente (después de guardar/actualizar)
     const unsubscribe = navigation.addListener('focus', () => {
         fetchPacientes();
     });
 
-    return unsubscribe; // Limpia el listener al desmontar
+    return unsubscribe; 
   }, [fetchPacientes, navigation]); 
 
-  // NUEVO: Función para manejar la edición
-  const handleEdit = (patient) => {
-    // Navega a NuevoPaciente, pasando todos los datos del paciente
+
+  // ==========================================================
+  // FUNCIONES DE ALERTA PERSONALIZADA (USANDO showCancel)
+  // ==========================================================
+  
+  // 1. Función para mostrar la alerta
+  const showAlert = useCallback((type, title, message, showCancel = false) => { // <-- showCancel como argumento
+      setAlertConfig({ visible: true, type, title, message, showCancel }); 
+  }, []);
+
+  // 2. Función que maneja el cierre de alertas (botón CANCELAR o botón ÚNICO de cierre).
+  const handleDismissAlert = useCallback(() => { 
+      setAlertConfig((prev) => {
+          // Usa prev.showCancel para saber si debe limpiar el estado pendiente
+          if (prev.showCancel) { 
+              setPatientToDelete(null); 
+          }
+          return { ...prev, visible: false }; // Cierra el modal
+      });
+  }, []); 
+
+
+  // 3. Función para ejecutar la eliminación al confirmar la alerta (ON CONFIRM - Botón ACEPTAR)
+  const handleConfirmDelete = useCallback(async () => {
+      if (!patientToDelete) {
+          handleDismissAlert(); 
+          return;
+      }
+
+      const { id } = patientToDelete;
+
+      // Cerramos la alerta ANTES de empezar la operación.
+      handleDismissAlert(); 
+      setIsLoading(true);
+
+      try {
+        const pacienteRef = doc(db, "pacientes", id);
+        await deleteDoc(pacienteRef);
+        console.log("Paciente eliminado con ID:", id);
+        
+        // Refrescar la lista
+        await fetchPacientes(); 
+        
+        // Mostrar alerta de éxito (de un solo botón)
+        showAlert("success", "Éxito", "Paciente eliminado correctamente.", false);
+      } catch (error) {
+        console.error("Error al eliminar paciente:", error);
+        // Mostrar alerta de error (de un solo botón)
+        showAlert("error", "Error", "No se pudo eliminar el paciente. Inténtalo de nuevo.", false); 
+        setIsLoading(false); 
+      } finally {
+          setPatientToDelete(null); 
+      }
+  }, [patientToDelete, fetchPacientes, showAlert, handleDismissAlert]);
+
+
+  // Función para manejar la eliminación (Muestra el CustomAlert de DOBLE BOTÓN)
+  const handleDelete = (id, nombreCompletoDisplay) => {
+    setPatientToDelete({ id, nombreCompletoDisplay });
+    
+    showAlert(
+        "error", 
+        "Confirmar Eliminación", 
+        `¿Estás seguro de que deseas eliminar a ${nombreCompletoDisplay}? Esta acción no se puede deshacer.`,
+        true // <-- TRUE para activar showCancel, y por ende, el botón CANCELAR
+    );
+  };
+  
+  // Función para ver detalles del paciente (Modo solo lectura)
+  const handleViewDetails = (patient) => {
     navigation.navigate('NuevoPaciente', { 
         patientData: {
             id: patient.id,
@@ -227,44 +311,28 @@ export default function Pacientes({ navigation }) {
             dni: patient.dni,
             telefono: patient.telefono,
             direccion: patient.direccion,
-        }
+        },
+        isViewMode: true, // <-- FLAG DE MODO SOLO LECTURA
     });
   };
 
-  // NUEVO: Función para manejar la eliminación
-  const handleDelete = (id, nombreCompleto) => {
-    Alert.alert(
-      "Confirmar Eliminación",
-      `¿Estás seguro de que deseas eliminar a ${nombreCompleto}? Esta acción no se puede deshacer.`,
-      [
-        {
-          text: "Cancelar",
-          style: "cancel"
+  // Función para manejar la edición (Modo edición normal)
+  const handleEdit = (patient) => {
+    navigation.navigate('NuevoPaciente', { 
+        patientData: {
+            id: patient.id,
+            firstName: patient.nombre,
+            lastName: patient.apellido,
+            email: patient.email,
+            dni: patient.dni,
+            telefono: patient.telefono,
+            direccion: patient.direccion,
         },
-        { 
-          text: "Eliminar", 
-          onPress: async () => {
-            try {
-              setIsLoading(true);
-              const pacienteRef = doc(db, "pacientes", id);
-              await deleteDoc(pacienteRef);
-              console.log("Paciente eliminado con ID:", id);
-              // Recargar la lista después de la eliminación exitosa
-              await fetchPacientes(); 
-              Alert.alert("Éxito", "Paciente eliminado correctamente.");
-            } catch (error) {
-              console.error("Error al eliminar paciente:", error);
-              Alert.alert("Error", "No se pudo eliminar el paciente. Inténtalo de nuevo.");
-              setIsLoading(false); 
-            }
-          },
-          style: 'destructive'
-        }
-      ]
-    );
+        isViewMode: false, // <-- Aseguramos Modo Edición
+    });
   };
-  
-  // Función para manejar la búsqueda en tiempo real
+
+  // Función para manejar la búsqueda en tiempo real (sin cambios)
   const handleSearch = (text) => {
     setSearchText(text);
     
@@ -272,7 +340,6 @@ export default function Pacientes({ navigation }) {
       const lowercasedText = text.toLowerCase();
       
       const newFilteredData = pacientesData.filter(item => { 
-        // Búsqueda por Nombre, Apellido y DNI
         return (
           item.nombreCompletoBusqueda.toLowerCase().includes(lowercasedText) ||
           (item.dni && item.dni.includes(text)) 
@@ -284,7 +351,7 @@ export default function Pacientes({ navigation }) {
     }
   };
   
-  // Vista de carga inicial
+  // Vista de carga inicial (sin cambios)
   if (isLoading && filteredData.length === 0) {
     return (
         <LinearGradient 
@@ -302,7 +369,7 @@ export default function Pacientes({ navigation }) {
 
       <StatusBar barStyle="light-content" backgroundColor="#20d3c4ff" />
 
-      {/* Header Superior */}
+      {/* Header Superior (sin cambios) */}
       <View style={styles.header}>
         <Text style={styles.welcomeText}>Pacientes</Text>
         <TouchableOpacity 
@@ -313,7 +380,7 @@ export default function Pacientes({ navigation }) {
         </TouchableOpacity>
       </View>
 
-      {/* Contenedor de Contenido */}
+      {/* Contenedor de Contenido (sin cambios) */}
       <View style={styles.contentContainer}>
         <View style={styles.turnosHeader}>
               <TextInput
@@ -332,9 +399,9 @@ export default function Pacientes({ navigation }) {
           <FlatList
             data={filteredData} 
             renderItem={({ item }) => (
-                // MODIFICADO: Pasamos el objeto paciente completo y los handlers
                 <PacienteCard 
                     patient={item} 
+                    onViewDetails={handleViewDetails} 
                     onEdit={handleEdit}
                     onDelete={handleDelete}
                 />
@@ -347,7 +414,7 @@ export default function Pacientes({ navigation }) {
         </LinearGradient>
       </View>
             
-      {/* Botón Flotante para Agregar Nuevo Paciente */}
+      {/* Botón Flotante para Agregar Nuevo Paciente (sin cambios) */}
       <TouchableOpacity
         style={styles.fabButton}
         onPress={() => navigation.navigate('NuevoPaciente')}
@@ -355,11 +422,22 @@ export default function Pacientes({ navigation }) {
         <Ionicons name="add" size={30} color="#fff" />
       </TouchableOpacity>
 
-      {/* Menú Modal */}
+      {/* Menú Modal (sin cambios) */}
       <MenuModal 
         visible={isMenuVisible} 
         onClose={() => setIsMenuVisible(false)} 
         navigation={navigation}
+      />
+
+      {/* COMPONENTE DE ALERTA PERSONALIZADA */}
+      <CustomAlert
+          visible={alertConfig.visible}
+          type={alertConfig.type}
+          title={alertConfig.title}
+          message={alertConfig.message}
+          showCancel={alertConfig.showCancel} // <-- ¡CLAVE! Se pasa la propiedad correcta (true cuando se elimina)
+          onClose={handleDismissAlert} // Conecta el botón CANCELAR/CERRAR
+          onConfirm={handleConfirmDelete} // Conecta el botón ACEPTAR
       />
     </View>
   );
@@ -375,8 +453,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 30,
-    paddingTop: 50, 
+    paddingVertical: 5,
+    paddingTop: 40, 
     backgroundColor: 'transparent', 
   },
   welcomeText: {
@@ -414,7 +492,7 @@ const styles = StyleSheet.create({
   turnoCard: {
     backgroundColor: '#fff',
     borderRadius: 12,
-    padding: 15, 
+    padding: 0, 
     marginTop: 5,
     marginBottom: 5, 
     shadowColor: '#000',
@@ -424,6 +502,9 @@ const styles = StyleSheet.create({
     elevation: 4,
     width: "90%",
     alignSelf: 'center'
+  },
+  cardContent: {
+      padding: 15,
   },
   pacienteCardGlow: {
     borderLeftWidth: 6,
@@ -455,10 +536,12 @@ const styles = StyleSheet.create({
   actionsContainer: {
     flexDirection: 'row', 
     justifyContent: 'space-between', 
-    marginTop: 10, 
+    marginTop: 0, 
     borderTopWidth: 1, 
     borderTopColor: '#ddd', 
     paddingTop: 10, 
+    paddingHorizontal: 15, 
+    paddingBottom: 5,
   },
   actionButton: {
     flexDirection: 'row', 
