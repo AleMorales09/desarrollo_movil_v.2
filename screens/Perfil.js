@@ -237,6 +237,7 @@ const PerfilCard = React.memo((props) => {
                         editable={isEditingProfile}
                         placeholder="Ingrese su nombre"
                         placeholderTextColor="#888"
+                        maxLength={30}
                         />
                     </View>
                     {firstNameError && (
@@ -254,6 +255,7 @@ const PerfilCard = React.memo((props) => {
                         editable={isEditingProfile}
                         placeholder="Ingrese su apellido"
                         placeholderTextColor="#888"
+                        maxLength={30}
                         />
                     </View>
                     {lastNameError && (
@@ -317,6 +319,7 @@ const ContactoCard = React.memo((props) => {
                         autoCapitalize="none"
                         placeholder="Correo"
                         placeholderTextColor="#888"
+                        maxLength={50}
                         />
                     </View>
                     {emailError && (
@@ -334,6 +337,7 @@ const ContactoCard = React.memo((props) => {
                             value={address}
                             onChangeText={text => setAddress(cleanAddress(text))}
                             editable={isEditingContact}
+                            maxLength={50}
                         />
                     </View>
 
@@ -455,6 +459,7 @@ const PasswordCard = (props) => {
                             onFocus={() => setShowPasswordInfo(true)}
                             onBlur={() => setShowPasswordInfo(false)}
                             placeholderTextColor="#888"
+                            maxLength={12}
                         />
                         <TouchableOpacity onPress={() => setShowNewPassword(!showNewPassword)} style={styles.eyeButton}>
                             <FontAwesome name={showNewPassword ? "eye-slash" : "eye"} size={18} color="#555" />
@@ -483,6 +488,7 @@ const PasswordCard = (props) => {
                             onFocus={() => setShowPasswordMatchInfo(true)}
                             onBlur={() => setShowPasswordMatchInfo(false)}
                             placeholderTextColor="#888"
+                            maxLength={12}
                         />
                         <TouchableOpacity onPress={() => setShowConfirmNewPassword(!showConfirmNewPassword)} style={styles.eyeButton}>
                             <FontAwesome name={showConfirmNewPassword ? "eye-slash" : "eye"} size={18} color="#555" />
@@ -836,6 +842,11 @@ export default function Perfil({ navigation }) {
             hasError = true;
         }
         
+        if (firstName.length < 2 || lastName.length < 2) {
+            showAlert("error", "Error", "El nombre o apellido son demasiado cortos");
+            hasError = true;
+        }
+
         if (hasError) return;
 
         try {
