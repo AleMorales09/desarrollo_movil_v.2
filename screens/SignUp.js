@@ -100,24 +100,12 @@ export default function SignUp({ navigation }) {
       return;
     }
 
-    // Validar nombre y apellido antes de registrar
-//     if (!validateName(trimmedFirstName)) {
-//       setFirstNameError(true);
-//       showAlert("error", "Error", "El nombre solo debe contener letras.");
-//       return;
-//     }
 
     if (trimmedFirstName.length < 2) {
       setFirstNameError(true);
       showAlert("error", "Error", "El nombre es demasiado corto.");
       return;
     }
-
-//     if (!validateName(trimmedLastName)) {
-//       setLastNameError(true);
-//       showAlert("error", "Error", "El apellido solo debe contener letras.");
-//       return;
-//     }
 
     if (trimmedLastName.length < 2) {
       setLastNameError(true);
@@ -173,7 +161,9 @@ export default function SignUp({ navigation }) {
           // role: 'user',
       });
 
-      showAlert("success", "Registro exitoso", "Usuario registrado y perfil creado con éxito.");
+      navigation.replace('App', { isNewUser: true });
+
+      //showAlert("success", "Registro exitoso", "Usuario registrado y perfil creado con éxito.");
 
     } catch (error) {
       let errorMessage = "Hubo un problema al registrar el usuario.";

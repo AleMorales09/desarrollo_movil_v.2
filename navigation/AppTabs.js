@@ -1,7 +1,7 @@
 import React, { useRef, useEffect } from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons'; 
-import { Animated } from 'react-native'; // 🔑 Importación de Animated
+import { Animated } from 'react-native'; 
 import { useSafeAreaInsets } from 'react-native-safe-area-context'; 
 import Home from '../screens/Home';
 import Perfil from '../screens/Perfil';
@@ -11,14 +11,12 @@ const Tab = createBottomTabNavigator();
 
 // --- Componente auxiliar para el ícono animado ---
 const AnimatedIcon = ({ iconName, size, color, focused }) => {
-    // 🔑 Creamos un valor animado para la escala
     const scaleAnim = useRef(new Animated.Value(focused ? 1.5 : 0.8)).current;
 
     useEffect(() => {
-        // Ejecutamos la animación de escala cuando el foco cambia
         Animated.spring(scaleAnim, {
-            toValue: focused ? 2.3 : 1, // 1.2 para rebote, 1 para estado normal
-            friction: 5, // Determina la 'elasticidad' del rebote
+            toValue: focused ? 2.3 : 1, 
+            friction: 5, 
             useNativeDriver: true,
         }).start();
     }, [focused, scaleAnim]);
@@ -33,8 +31,8 @@ const AnimatedIcon = ({ iconName, size, color, focused }) => {
 
 
 // Este es el menú inferior que solo aparece DESPUÉS del login
-function AppTabs() {
-  // 🔑 Hook para obtener los insets (márgenes seguros) del sistema
+// 💡 MODIFICACIÓN CLAVE: Recibe los parámetros del Stack (ej: {isNewUser: true})
+function AppTabs({ initialRouteParams }) {
   const insets = useSafeAreaInsets();
   
   return (
@@ -50,9 +48,10 @@ function AppTabs() {
           else if (route.name === 'Perfil') {
             iconName = focused ? 'person-circle' : 'person-circle-outline';
           }
-          // Lógica para 'Turnos' eliminada de aquí.
-
-          // 🔑 Usamos el componente AnimatedIcon en lugar del Ionicons directo
+          else if (route.name === 'Turnos') {
+            iconName = focused ? 'calendar' : 'calendar-outline';
+          }
+          
           return (
             <AnimatedIcon 
               iconName={iconName} 
@@ -71,7 +70,6 @@ function AppTabs() {
         // 🔑 PROPIEDAD CLAVE: ESTILO DEL CONTENEDOR DE LA BARRA
         tabBarStyle: {
           backgroundColor: '#f5f2f2ff',
-          //borderTopWidth: 2,
           paddingBottom: 1,  
           height: 60,
           position: 'absolute',
@@ -91,7 +89,12 @@ function AppTabs() {
         },
       })}
     >
-      <Tab.Screen name="Home" component={Home} />
+      {/* 💡 MODIFICACIÓN CLAVE: Pasar los parámetros iniciales a la pantalla Home */}
+      <Tab.Screen 
+        name="Home" 
+        component={Home} 
+        initialParams={initialRouteParams}
+      />
       <Tab.Screen name="Perfil" component={Perfil} />
     </Tab.Navigator>
   );

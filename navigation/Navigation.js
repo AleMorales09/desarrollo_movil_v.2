@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
 import { NavigationContainer } from '@react-navigation/native';
@@ -7,9 +6,7 @@ import { auth } from '../src/config/firebaseConfig';
 import Login from '../screens/Login';
 import SignUp from '../screens/SignUp';
 import NuevoPaciente from '../screens/NuevoPaciente';
-// import NuevoPaciente2 from '../screens/NuevoPaciente copy'
-// Importa el nuevo componente que contiene el menú inferior
-import AppTabs from './AppTabs';
+import AppTabs from './AppTabs'; // Contiene el Bottom Tab Navigator
 import ForgotPassword from '../screens/ForgotPassword';
 import Pacientes from '../screens/Pacientes';
 import Turnos from '../screens/Turnos';
@@ -22,42 +19,42 @@ function Navigation() {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, user => {
-      setIsAuthenticated(!!user); // Simplifica la asignación
+      setIsAuthenticated(!!user); 
       setLoading(false); 
     });
 
     return () => unsubscribe();
   }, []);
 
-  // Muestra una pantalla de carga mientras Firebase verifica el estado inicial
   if (loading) {
-    return null; // En una app real, aquí va un Splash Screen o Spinner
+    return null; // Mostrar pantalla de carga o Splash Screen
   }
 
   return (
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {isAuthenticated ? (
-          // === ESTADO AUTENTICADO: MUESTRA LA APLICACIÓN PRINCIPAL ===
-          // Renderiza el AppTabs, que contiene el Bottom Tab Navigator.
-          // Cualquier navegación dentro de AppTabs tendrá el menú inferior.
+          // === ESTADO AUTENTICADO: STACK PRINCIPAL (CON TABS) ===
           <>
-            <Stack.Screen name="App" component={AppTabs} />
-            <Stack.Screen name="NuevoPaciente" component={NuevoPaciente} 
-            options={{presentation: 'modal'}}/>
-            {/* <Stack.Screen name="NuevoPaciente copy" component={NuevoPaciente2} 
-            options={{presentation: 'modal'}}/> */}
+            {/* 💡 MODIFICACIÓN CLAVE: Pasar los parámetros de la ruta (incluido isNewUser) a AppTabs */}
+            <Stack.Screen 
+              name="App" 
+              component={({ route }) => <AppTabs initialRouteParams={route.params} />} 
+            />
+            <Stack.Screen 
+              name="NuevoPaciente" 
+              component={NuevoPaciente} 
+              options={{presentation: 'modal'}}
+            />
             <Stack.Screen name="Pacientes" component={Pacientes} />
             <Stack.Screen name="Turnos" component={Turnos} />
           </>
         ) : (
-          // === ESTADO NO AUTENTICADO: MUESTRA EL STACK DE AUTENTICACIÓN ===
-          // Estas pantallas NO tendrán el menú inferior.
+          // === ESTADO NO AUTENTICADO: STACK DE AUTENTICACIÓN ===
           <>
             <Stack.Screen name="Login" component={Login} />
             <Stack.Screen name="SignUp" component={SignUp} />
             <Stack.Screen name="ForgotPassword" component={ForgotPassword} />
-            {/* <Stack.Screen name="NuevoPaciente" component={NuevoPaciente} /> */}
           </>
         )}
       </Stack.Navigator>
@@ -66,4 +63,3 @@ function Navigation() {
 }
 
 export default Navigation;
-

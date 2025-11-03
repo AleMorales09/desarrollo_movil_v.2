@@ -1,40 +1,63 @@
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet,Image, StatusBar, } from 'react-native';
 import { signOut } from 'firebase/auth';
 import { auth } from '../src/config/firebaseConfig';
 import { Ionicons,FontAwesome5,MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { FlatList } from 'react-native';
+import { useRoute } from '@react-navigation/native'; // 💡 IMPORTACIÓN CLAVE
+import AsyncStorage from '@react-native-async-storage/async-storage'; // 💡 IMPORTACIÓN CLAVE
+import CustomAlert from '../components/Alert'; // 💡 Renombrado para evitar conflicto con RNAlert
 
-
-// const turnosData = [
-//   { id: "1", hora: "17:30 hs", paciente: "Ricardo Perez", tratamiento: "Endodoncia" },
-//   { id: "2", hora: "18:00 hs", paciente: "Sofia Martinez", tratamiento: "Limpieza" },
-//   { id: "3", hora: "18:30 hs", paciente: "Elena Diaz", tratamiento: "Control Ortodoncia" },
-//   { id: "4", hora: "19:00 hs", paciente: "Javier Gerardo Milei", tratamiento: "Fotocurado" },
-//   { id: "5", hora: "19:30 hs", paciente: "Lautaro Puca", tratamiento: "Fotocurado" },
-// ];
-// const TurnoCard = ({ hora, paciente, tratamiento }) => (
-//   <View style={styles.turnoCard}>
-//     <View style={styles.cardHeader}>
-//     <Ionicons name="time-outline" size={28} color="#109beb" />
-//     <Text style={styles. turnoHora}>{hora}</Text>
-//     </View>
-//     <Text style={styles.turnoPaciente}>{paciente}</Text>
-//     <Text style={styles.turnoTratamiento}>{tratamiento}</Text>
-//   </View>
-// );
+const ALERT_SHOWN_KEY = '@AlertShownAfterSignUp';
 
 export default function Home({ navigation }) {
-  const handleLogOut = async () => {
-    try {
-      await signOut(auth);
-      Alert.alert("Sesión cerrada", "Has cerrado sesión correctamente.");
-      navigation.replace('Login');
-    } catch (error) {
-      Alert.alert("Error", "Hubo un problema al cerrar sesión.");
-    }
+
+  // 💡 OBTENER LOS PARÁMETROS DE LA RUTA
+  const route = useRoute();
+  const { isNewUser } = route.params || {}; // Destructurar isNewUser
+
+  const [alertConfig, setAlertConfig] = useState({ visible: false, type: "info", title: "", message: "" });
+
+  const showAlert = (type, title, message) => {
+    setAlertConfig({ visible: true, type, title, message });
   };
+
+  const closeAlert = () => {
+    setAlertConfig({ ...alertConfig, visible: false });
+  };
+
+  // 💡 EFECTO PARA VERIFICAR Y MOSTRAR LA ALERTA
+  useEffect(() => {
+    const checkAndShowAlert = async () => {
+      // 1. Si NO es un nuevo usuario, no hacemos nada
+      if (!isNewUser) {
+        return;
+      }
+      
+      try {
+        // 2. Comprobar si la alerta ya se ha mostrado
+        const hasAlertBeenShown = await AsyncStorage.getItem(ALERT_SHOWN_KEY);
+
+        if (hasAlertBeenShown === null) {
+          // 3. Si NUNCA se ha mostrado, mostrarla
+          showAlert(
+            "success", 
+            "¡Registro Exitoso!", 
+            "Tu cuenta ha sido creada y has iniciado sesión automáticamente. ¡Bienvenido/a!"
+          );
+          
+          // 4. Guardar el estado en AsyncStorage para que no se muestre de nuevo
+          await AsyncStorage.setItem(ALERT_SHOWN_KEY, 'true');
+        }
+      } catch (error) {
+        console.error("Error AsyncStorage:", error);
+        // Opcional: mostrar una alerta nativa si falla la persistencia.
+      }
+    };
+
+    checkAndShowAlert();
+  }, [isNewUser]); // Se ejecuta cuando isNewUser cambia (que solo pasa al cargar la pantalla)
 
   const carrucelData = [
     { titulo: "Misión",
@@ -44,8 +67,6 @@ export default function Home({ navigation }) {
       descripcion: "Líderes en odontología por excelencia clínica y \ncompromiso local.", 
     },
   ];
-
-
 
   const renderCarrucelItem = ({item }) => (
     <LinearGradient
@@ -96,7 +117,6 @@ export default function Home({ navigation }) {
           showsHorizontalScrollIndicator={false}
           pagingEnabled= {false}
           contentContainerStyle={{ paddingHorizontal: 20 }}
-
           
         />
       </View>
@@ -153,6 +173,13 @@ export default function Home({ navigation }) {
           </LinearGradient>
         </TouchableOpacity>
       </View>
+      <CustomAlert
+        visible={alertConfig.visible}
+        type={alertConfig.type}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        onClose={closeAlert}
+      />
     </LinearGradient>
   );
 }
@@ -323,6 +350,4 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginTop: 4,
   },
-
-
 });
