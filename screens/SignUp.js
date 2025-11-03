@@ -32,12 +32,6 @@ export default function SignUp({ navigation }) {
 
   const showAlert = (type, title, message) => {
     setAlertConfig({ visible: true, type, title, message });
-    if (type === "success") {
-      setTimeout(() => {
-        setAlertConfig((prev) => ({ ...prev, visible: false }));
-        navigation.reset({ index: 0, routes: [{ name: 'SignUp' }] });
-      }, 30000);
-    }
   };
 
   const closeAlert = () => {
