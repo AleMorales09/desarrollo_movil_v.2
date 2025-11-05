@@ -37,10 +37,9 @@ function Navigation() {
           // === ESTADO AUTENTICADO: STACK PRINCIPAL (CON TABS) ===
           <>
             {/* 💡 MODIFICACIÓN CLAVE: Pasar los parámetros de la ruta (incluido isNewUser) a AppTabs */}
-            <Stack.Screen 
-              name="App" 
-              component={({ route }) => <AppTabs initialRouteParams={route.params} />} 
-            />
+            <Stack.Screen name="App">
+                {props => <AppTabs {...props} />} 
+            </Stack.Screen>
             <Stack.Screen 
               name="NuevoPaciente" 
               component={NuevoPaciente} 

@@ -9,8 +9,7 @@ import {
     TextInput, 
     Modal, 
     ActivityIndicator,
-    // Eliminamos Alert de react-native para usar el personalizado
-    // Alert 
+    Image, // 💡 IMPORTANTE: Importar Image para mostrar la foto
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, FontAwesome, MaterialCommunityIcons } from '@expo/vector-icons'; 
@@ -90,8 +89,21 @@ const PacienteCard = ({ patient, onViewDetails, onEdit, onDelete }) => (
         onPress={() => onViewDetails(patient)} 
         activeOpacity={0.7} 
     >
-        <Text style={styles.pacienteNombre}>{patient.nombreCompletoDisplay}</Text> 
+        {/* 💡 AÑADIDO: Contenedor de la foto y el nombre */}
+        <View style={styles.photoHeaderContainer}>
+            {patient.photoURL ? (
+                // Si hay foto, mostrar la imagen
+                <Image source={{ uri: patient.photoURL }} style={styles.profileImageSmall} />
+            ) : (
+                // Si no hay foto, mostrar placeholder
+                <View style={styles.photoPlaceholderSmall}>
+                    <Ionicons name="person" size={20} color="#fff" />
+                </View>
+            )}
+            <Text style={styles.pacienteNombre}>{patient.nombreCompletoDisplay}</Text> 
+        </View>
         
+        {/* Los detalles se muestran debajo del header de la foto */}
         <Text style={styles.pacienteDni}>DNI: {patient.dni || 'No especificado'}</Text> 
         <Text style={styles.pacienteTel}>Teléfono: {patient.telefono}</Text>
         <Text style={styles.pacienteEmail}>Email: {patient.correo}</Text>
@@ -175,9 +187,9 @@ export default function Pacientes({ navigation }) {
     type: "error", 
     title: "",
     message: "",
-    showCancel: false, // <-- CORREGIDO: Usar showCancel, el prop que tu Alert.js espera
+    showCancel: false, 
   });
-  const [patientToDelete, setPatientToDelete] = useState(null); // Almacena id y nombre
+  const [patientToDelete, setPatientToDelete] = useState(null); 
 
   // Función para obtener pacientes de Firestore
   const fetchPacientes = useCallback(async () => {
@@ -188,26 +200,32 @@ export default function Pacientes({ navigation }) {
       
       let list = pacienteSnapshot.docs.map(doc => {
         const data = doc.data();
-        const apellido = data.apellido || '';
-        const nombre = data.nombre || '';
+        
+        // 💡 CORRECCIÓN: Usar variables temporales con nombres claros, que coincidan con Firestore.
+        const lastName = data.lastName || ''; 
+        const firstName = data.firstName || ''; 
 
         return {
           id: doc.id, 
-          apellido: apellido, 
-          nombre: nombre, 
+          // 💡 CLAVE: Usamos los nombres de campo (firstName/lastName) para que coincidan con NuevoPaciente.js
+          firstName: firstName, // Lo que antes era 'nombre'
+          lastName: lastName,   // Lo que antes era 'apellido'
           dni: data.dni || '',
           email: data.email || '', 
           telefono: data.telefono || '', 
           direccion: data.direccion || '', 
-          nombreCompletoBusqueda: `${nombre} ${apellido}`.trim(), 
-          nombreCompletoDisplay: `${apellido.toUpperCase()}, ${nombre}`, 
+          photoURL: data.photoURL || null, 
+          // Usamos las variables locales para la busqueda y el display
+          nombreCompletoBusqueda: `${firstName} ${lastName}`.trim(), 
+          nombreCompletoDisplay: `${lastName.toUpperCase()}, ${firstName}`, 
           correo: data.email || 'No especificado', 
         };
       });
 
       // 1. Ordenamiento por Apellido (alfabético)
       list.sort((a, b) => {
-        return a.apellido.localeCompare(b.apellido);
+        // 💡 CORRECCIÓN: Usar el campo correcto en el objeto: 'lastName'
+        return a.lastName.localeCompare(b.lastName);
       });
       
       setPacientesData(list);
@@ -223,8 +241,10 @@ export default function Pacientes({ navigation }) {
   }, []); 
 
   useEffect(() => {
+    // Carga inicial
     fetchPacientes();
     
+    // 💡 SOLUCIÓN A DATOS OBSOLETOS: Vuelve a cargar la lista cada vez que la pantalla entra en foco
     const unsubscribe = navigation.addListener('focus', () => {
         fetchPacientes();
     });
@@ -234,27 +254,22 @@ export default function Pacientes({ navigation }) {
 
 
   // ==========================================================
-  // FUNCIONES DE ALERTA PERSONALIZADA (USANDO showCancel)
+  // FUNCIONES DE ALERTA PERSONALIZADA
   // ==========================================================
   
-  // 1. Función para mostrar la alerta
-  const showAlert = useCallback((type, title, message, showCancel = false) => { // <-- showCancel como argumento
+  const showAlert = useCallback((type, title, message, showCancel = false) => { 
       setAlertConfig({ visible: true, type, title, message, showCancel }); 
   }, []);
 
-  // 2. Función que maneja el cierre de alertas (botón CANCELAR o botón ÚNICO de cierre).
   const handleDismissAlert = useCallback(() => { 
       setAlertConfig((prev) => {
-          // Usa prev.showCancel para saber si debe limpiar el estado pendiente
           if (prev.showCancel) { 
               setPatientToDelete(null); 
           }
-          return { ...prev, visible: false }; // Cierra el modal
+          return { ...prev, visible: false };
       });
   }, []); 
 
-
-  // 3. Función para ejecutar la eliminación al confirmar la alerta (ON CONFIRM - Botón ACEPTAR)
   const handleConfirmDelete = useCallback(async () => {
       if (!patientToDelete) {
           handleDismissAlert(); 
@@ -263,23 +278,18 @@ export default function Pacientes({ navigation }) {
 
       const { id } = patientToDelete;
 
-      // Cerramos la alerta ANTES de empezar la operación.
       handleDismissAlert(); 
       setIsLoading(true);
 
       try {
         const pacienteRef = doc(db, "pacientes", id);
         await deleteDoc(pacienteRef);
-        console.log("Paciente eliminado con ID:", id);
         
-        // Refrescar la lista
         await fetchPacientes(); 
         
-        // Mostrar alerta de éxito (de un solo botón)
         showAlert("success", "Éxito", "Paciente eliminado correctamente.", false);
       } catch (error) {
         console.error("Error al eliminar paciente:", error);
-        // Mostrar alerta de error (de un solo botón)
         showAlert("error", "Error", "No se pudo eliminar el paciente. Inténtalo de nuevo.", false); 
         setIsLoading(false); 
       } finally {
@@ -288,7 +298,6 @@ export default function Pacientes({ navigation }) {
   }, [patientToDelete, fetchPacientes, showAlert, handleDismissAlert]);
 
 
-  // Función para manejar la eliminación (Muestra el CustomAlert de DOBLE BOTÓN)
   const handleDelete = (id, nombreCompletoDisplay) => {
     setPatientToDelete({ id, nombreCompletoDisplay });
     
@@ -296,7 +305,7 @@ export default function Pacientes({ navigation }) {
         "error", 
         "Confirmar Eliminación", 
         `¿Estás seguro de que deseas eliminar a ${nombreCompletoDisplay}? Esta acción no se puede deshacer.`,
-        true // <-- TRUE para activar showCancel, y por ende, el botón CANCELAR
+        true 
     );
   };
   
@@ -305,14 +314,16 @@ export default function Pacientes({ navigation }) {
     navigation.navigate('NuevoPaciente', { 
         patientData: {
             id: patient.id,
-            firstName: patient.nombre,
-            lastName: patient.apellido,
+            // 💡 CORRECCIÓN: Usar patient.firstName y patient.lastName directamente
+            firstName: patient.firstName,
+            lastName: patient.lastName,
             email: patient.email,
             dni: patient.dni,
             telefono: patient.telefono,
             direccion: patient.direccion,
+            photoURL: patient.photoURL, 
         },
-        isViewMode: true, // <-- FLAG DE MODO SOLO LECTURA
+        isViewMode: true, 
     });
   };
 
@@ -321,18 +332,20 @@ export default function Pacientes({ navigation }) {
     navigation.navigate('NuevoPaciente', { 
         patientData: {
             id: patient.id,
-            firstName: patient.nombre,
-            lastName: patient.apellido,
+            // 💡 CORRECCIÓN: Usar patient.firstName y patient.lastName directamente
+            firstName: patient.firstName,
+            lastName: patient.lastName,
             email: patient.email,
             dni: patient.dni,
             telefono: patient.telefono,
             direccion: patient.direccion,
+            photoURL: patient.photoURL, 
         },
-        isViewMode: false, // <-- Aseguramos Modo Edición
+        isViewMode: false, 
     });
   };
 
-  // Función para manejar la búsqueda en tiempo real (sin cambios)
+  // Función para manejar la búsqueda en tiempo real
   const handleSearch = (text) => {
     setSearchText(text);
     
@@ -340,6 +353,7 @@ export default function Pacientes({ navigation }) {
       const lowercasedText = text.toLowerCase();
       
       const newFilteredData = pacientesData.filter(item => { 
+        // 💡 CORRECCIÓN: nombreCompletoBusqueda ya usa firstName/lastName
         return (
           item.nombreCompletoBusqueda.toLowerCase().includes(lowercasedText) ||
           (item.dni && item.dni.includes(text)) 
@@ -351,7 +365,6 @@ export default function Pacientes({ navigation }) {
     }
   };
   
-  // Vista de carga inicial (sin cambios)
   if (isLoading && filteredData.length === 0) {
     return (
         <LinearGradient 
@@ -369,7 +382,7 @@ export default function Pacientes({ navigation }) {
 
       <StatusBar barStyle="light-content" backgroundColor="#20d3c4ff" />
 
-      {/* Header Superior (sin cambios) */}
+      {/* Header Superior */}
       <View style={styles.header}>
         <Text style={styles.welcomeText}>Pacientes</Text>
         <TouchableOpacity 
@@ -380,7 +393,7 @@ export default function Pacientes({ navigation }) {
         </TouchableOpacity>
       </View>
 
-      {/* Contenedor de Contenido (sin cambios) */}
+      {/* Contenedor de Contenido */}
       <View style={styles.contentContainer}>
         <View style={styles.turnosHeader}>
               <TextInput
@@ -414,7 +427,7 @@ export default function Pacientes({ navigation }) {
         </LinearGradient>
       </View>
             
-      {/* Botón Flotante para Agregar Nuevo Paciente (sin cambios) */}
+      {/* Botón Flotante para Agregar Nuevo Paciente */}
       <TouchableOpacity
         style={styles.fabButton}
         onPress={() => navigation.navigate('NuevoPaciente')}
@@ -422,7 +435,7 @@ export default function Pacientes({ navigation }) {
         <Ionicons name="add" size={30} color="#fff" />
       </TouchableOpacity>
 
-      {/* Menú Modal (sin cambios) */}
+      {/* Menú Modal */}
       <MenuModal 
         visible={isMenuVisible} 
         onClose={() => setIsMenuVisible(false)} 
@@ -435,9 +448,9 @@ export default function Pacientes({ navigation }) {
           type={alertConfig.type}
           title={alertConfig.title}
           message={alertConfig.message}
-          showCancel={alertConfig.showCancel} // <-- ¡CLAVE! Se pasa la propiedad correcta (true cuando se elimina)
-          onClose={handleDismissAlert} // Conecta el botón CANCELAR/CERRAR
-          onConfirm={handleConfirmDelete} // Conecta el botón ACEPTAR
+          showCancel={alertConfig.showCancel} 
+          onClose={handleDismissAlert} 
+          onConfirm={handleConfirmDelete} 
       />
     </View>
   );
@@ -512,10 +525,38 @@ const styles = StyleSheet.create({
     borderRadius: 12, 
     overflow: 'hidden', 
   },
+  // 💡 ESTILOS AÑADIDOS PARA LA FOTO
+  photoHeaderContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10, // Separación entre la foto/nombre y los detalles
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+    paddingBottom: 10,
+  },
+  profileImageSmall: {
+    width: 35,
+    height: 35,
+    borderRadius: 17.5,
+    marginRight: 10,
+    borderWidth: 1,
+    borderColor: '#05f7c2',
+  },
+  photoPlaceholderSmall: {
+    width: 35,
+    height: 35,
+    borderRadius: 17.5,
+    marginRight: 10,
+    backgroundColor: '#3b82f6', // Color de fondo del placeholder
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  // FIN ESTILOS DE FOTO
+  
   pacienteNombre: {
     fontSize: 16, 
     fontWeight: 'bold',
-    marginBottom: 5, 
+    // Eliminamos el marginBottom aquí ya que está en photoHeaderContainer
     color: '#333',
   },
   pacienteDni: { 
