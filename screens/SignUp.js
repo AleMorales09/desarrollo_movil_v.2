@@ -7,6 +7,7 @@ import { doc, setDoc } from 'firebase/firestore'; // <-- IMPORTAR setDoc y doc p
 import { LinearGradient } from "expo-linear-gradient";
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import Alert from '../components/Alert';
+import { signOut } from 'firebase/auth';
 
 export default function SignUp({ navigation }) {
   const [firstName, setFirstName] = useState('');
@@ -138,6 +139,28 @@ export default function SignUp({ navigation }) {
     try {
       // 1. CREAR EL USUARIO EN FIREBASE AUTH
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+
+      //await signOut(auth);
+
+      // IMPORTANTE: Usar reset para limpiar el stack completamente
+      setTimeout(() => {
+
+          navigation.reset({
+          index: 0,
+          routes: [{ name: 'Login' }],
+        });
+
+      }, 3000);
+
+      showAlert(
+        "success", 
+        "¡Registro Exitoso!", 
+        "Tu cuenta ha sido creada correctamente. Por favor, inicia sesión."
+      );
+
+        
+
+
       const user = userCredential.user;
 
       // 2. CREAR UN DISPLAY NAME SIMPLE Y SEGURO (O DEJAR NULO)
@@ -160,10 +183,6 @@ export default function SignUp({ navigation }) {
           // createdAt: new Date(),
           // role: 'user',
       });
-
-      navigation.replace('App', { isNewUser: true });
-
-      //showAlert("success", "Registro exitoso", "Usuario registrado y perfil creado con éxito.");
 
     } catch (error) {
       let errorMessage = "Hubo un problema al registrar el usuario.";

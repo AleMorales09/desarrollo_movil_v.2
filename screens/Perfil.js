@@ -1004,6 +1004,9 @@ export default function Perfil({ navigation }) {
         handleCloseAlert();
         try {
             await auth.signOut();
+            navigation.reset({
+            index: 0,
+            routes: [{ name: 'Login' }]})
         } catch (error) {
             showAlert("error", "Error", "No se pudo cerrar la sesión. Inténtalo de nuevo.", false);
         }

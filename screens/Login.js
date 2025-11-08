@@ -53,11 +53,11 @@ export default function Login({ navigation }) {
     }
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      // showAlert("success", "¡Bienvenido!", "Se inició sesión correctamente.");
-      // Espera 3 segundos antes de navegar
+      showAlert("success", "¡Bienvenido!", "Se inició sesión correctamente.");
+      //Espera 3 segundos antes de navegar
       setTimeout(() => {
-        // Si quieres navegar manualmente, descomenta la siguiente línea:
-        // navigation.reset({ index: 0, routes: [{ name: "App" }] });
+        //si quieres navegar manualmente, descomenta la siguiente línea:
+        navigation.reset({ index: 0, routes: [{ name: "App" }] });
       }, 3000);
     } catch (error) {
       let errorMessage = "Hubo un problema al iniciar sesión.";
