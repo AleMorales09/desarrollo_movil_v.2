@@ -30,9 +30,9 @@ function Navigation() {
     return () => unsubscribe();
   }, []);
 
-  if (loading) {
-    return null; // Mostrar pantalla de carga o Splash Screen
-  }
+  // if (loading) {
+  //   return null; // Mostrar pantalla de carga o Splash Screen
+  // }
 
   return (
     <NavigationContainer>
