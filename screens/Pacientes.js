@@ -9,22 +9,22 @@ import {
     TextInput, 
     Modal, 
     ActivityIndicator,
-    Image, // 💡 IMPORTANTE: Importar Image para mostrar la foto
+    Image, 
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, FontAwesome, MaterialCommunityIcons } from '@expo/vector-icons'; 
 import { db } from '../src/config/firebaseConfig'; 
-import { collection, getDocs, doc, deleteDoc } from 'firebase/firestore'; 
-
-// Importamos el componente de Alerta personalizada 
+import { collection, getDocs, doc, updateDoc, query, where } from 'firebase/firestore'; 
 import CustomAlert from '../components/Alert'; 
 
 // ==========================================================
 // Componente para el menú modal (opciones de navegación)
 // ==========================================================
-const MenuModal = ({ visible, onClose, navigation }) => {
-  const menuOptions = [
+const MenuModal = ({ visible, onClose, navigation, currentRouteName }) => { 
+  const allMenuOptions = [
     { name: 'Inicio', screen: 'Home', isTab: true, icon: 'home-outline' },
+    { name: 'Pacientes Activos', screen: 'Pacientes', isStack: true, icon: 'people-outline' }, 
+    { name: 'Pacientes Inactivos', screen: 'PacientesInactivos', isStack: true, icon: 'archive-outline' }, 
     { name: 'Personal', screen: 'Personal', isStack: false, icon: 'account-group' }, 
     { name: 'Tratamientos', screen: 'Tratamientos', isStack: false, icon: 'bandage-outline' }, 
     { name: 'Turnos', screen: 'Turnos', isTab: true, icon: 'calendar-outline' },
@@ -32,16 +32,19 @@ const MenuModal = ({ visible, onClose, navigation }) => {
   ];
 
   const handleNavigate = (option) => {
+    
+    if (option.screen === currentRouteName) {
+        onClose();
+        return;
+    }
+
     onClose();
     
-    if (option.name === 'Turnos' || option.name === 'Pacientes') { 
-        navigation.navigate(option.screen);
-    } 
-    else if (option.isTab) {
+    if (option.isTab) {
         navigation.navigate('App', { screen: option.screen });
-    }
-    else {
-        navigation.navigate('App', { screen: option.screen }); 
+    } 
+    else { 
+        navigation.navigate(option.screen);
     }
   };
 
@@ -61,16 +64,26 @@ const MenuModal = ({ visible, onClose, navigation }) => {
     >
       <TouchableOpacity style={styles.modalOverlay} onPress={onClose} activeOpacity={1}>
         <View style={styles.menuContainer}>
-          {menuOptions.map((option, index) => (
-            <TouchableOpacity 
-              key={index} 
-              style={styles.menuItem}
-              onPress={() => handleNavigate(option)}
-            >
-              {getIconComponent(option)}
-              <Text style={styles.menuItemText}>{option.name}</Text>
-            </TouchableOpacity>
-          ))}
+          {allMenuOptions.map((option, index) => {
+            
+            const isActive = option.screen === currentRouteName; 
+            
+            return (
+              <TouchableOpacity 
+                key={index} 
+                style={[styles.menuItem, isActive && styles.menuItemActive]} 
+                onPress={() => handleNavigate(option)}
+                disabled={isActive} 
+              >
+                {getIconComponent(option)}
+                <Text 
+                    style={[styles.menuItemText, isActive && styles.menuItemTextActive]}
+                >
+                    {option.name}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
       </TouchableOpacity>
     </Modal>
@@ -81,61 +94,76 @@ const MenuModal = ({ visible, onClose, navigation }) => {
 // ==========================================================
 // Componente individual para cada tarjeta de paciente
 // ==========================================================
-const PacienteCard = ({ patient, onViewDetails, onEdit, onDelete }) => ( 
-  <View style={[styles.turnoCard, styles.pacienteCardGlow]}>
-    
-    <TouchableOpacity 
-        style={styles.cardContent} 
-        onPress={() => onViewDetails(patient)} 
-        activeOpacity={0.7} 
-    >
-        {/* 💡 AÑADIDO: Contenedor de la foto y el nombre */}
-        <View style={styles.photoHeaderContainer}>
-            {patient.photoURL ? (
-                // Si hay foto, mostrar la imagen
-                <Image source={{ uri: patient.photoURL }} style={styles.profileImageSmall} />
-            ) : (
-                // Si no hay foto, mostrar placeholder
-                <View style={styles.photoPlaceholderSmall}>
-                    <Ionicons name="person" size={20} color="#fff" />
-                </View>
-            )}
-            <Text style={styles.pacienteNombre}>{patient.nombreCompletoDisplay}</Text> 
-        </View>
+const PacienteCard = ({ patient, onViewDetails, onEdit, onDeactivate }) => { 
+    const cardGlowStyle = patient.isActive 
+        ? styles.pacienteCardGlowActive 
+        : styles.pacienteCardGlowInactive;
         
-        {/* Los detalles se muestran debajo del header de la foto */}
-        <Text style={styles.pacienteDni}>DNI: {patient.dni || 'No especificado'}</Text> 
-        <Text style={styles.pacienteTel}>Teléfono: {patient.telefono}</Text>
-        <Text style={styles.pacienteEmail}>Email: {patient.correo}</Text>
-    </TouchableOpacity>
+    const buttonBgColor = patient.isActive ? '#ff6b6b' : '#05f7c2'; 
+    const buttonIcon = patient.isActive ? "trash" : "undo";
+    const buttonText = patient.isActive ? "Desactivar" : "Activar";
 
-    {/* Contenedor para los botones de acción */}
-    <View style={styles.actionsContainer}>
-      <TouchableOpacity 
-        style={[styles.actionButton, styles.editButton, styles.buttonHalfWidth]} 
-        onPress={() => onEdit(patient)} 
-      >
-        <FontAwesome name="edit" size={18} color="#fff" />
-        <Text style={styles.buttonText}>Editar</Text>
-      </TouchableOpacity>
+    return (
+        <View style={[styles.turnoCard, cardGlowStyle]}>
+            <TouchableOpacity 
+                style={styles.cardContent} 
+                onPress={() => onViewDetails(patient)} 
+                activeOpacity={0.7} 
+            >
+                <View style={styles.photoHeaderContainer}>
+                    {patient.photoURL ? (
+                        <Image source={{ uri: patient.photoURL }} style={styles.profileImageSmall} />
+                    ) : (
+                        <View style={styles.photoPlaceholderSmall}>
+                            <Ionicons name="person" size={20} color="#fff" />
+                        </View>
+                    )}
+                    <View>
+                        <Text style={styles.pacienteNombre}>{patient.nombreCompletoDisplay}</Text> 
+                        <Text style={patient.isActive ? styles.pacienteEstadoActive : styles.pacienteEstadoInactive}>
+                            Estado: {patient.isActive ? 'Activo' : 'Inactivo'}
+                        </Text>
+                    </View>
+                </View>
+                
+                <Text style={styles.pacienteDni}>DNI: {patient.dni || 'No especificado'}</Text> 
+                <Text style={styles.pacienteTel}>Teléfono: {patient.telefono}</Text>
+                <Text style={styles.pacienteEmail}>Email: {patient.correo}</Text>
+            </TouchableOpacity>
 
-      <TouchableOpacity 
-        style={[styles.actionButton, styles.deleteButton, styles.buttonHalfWidth]} 
-        onPress={() => onDelete(patient.id, patient.nombreCompletoDisplay)} 
-      >
-        <FontAwesome name="trash" size={18} color="#fff" />
-        <Text style={styles.buttonText}>Eliminar</Text>
-      </TouchableOpacity>
-    </View>
-
-  </View>
-);
+            <View style={styles.actionsContainer}>
+                
+                {patient.isActive && (
+                    <TouchableOpacity 
+                        style={[styles.actionButton, styles.editButton, styles.buttonHalfWidth]} 
+                        onPress={() => onEdit(patient)} 
+                    >
+                        <FontAwesome name="edit" size={18} color="#fff" />
+                        <Text style={styles.buttonText}>Editar</Text>
+                    </TouchableOpacity>
+                )}
+                
+                <TouchableOpacity 
+                    style={[
+                        styles.actionButton, 
+                        patient.isActive ? styles.buttonHalfWidth : styles.buttonFullWidth, 
+                        { backgroundColor: buttonBgColor }
+                    ]} 
+                    onPress={() => onDeactivate(patient.id, patient.nombreCompletoDisplay, patient.isActive)} 
+                >
+                    <FontAwesome name={buttonIcon} size={18} color="#fff" />
+                    <Text style={styles.buttonText}>{buttonText}</Text>
+                </TouchableOpacity>
+            </View>
+        </View>
+    );
+};
 
 
 // ==========================================================
 // Mensajes de Lista Vacía
 // ==========================================================
-const renderEmptyList = (searchText, isLoading) => { 
+const renderEmptyList = (searchText, isLoading, filterActive) => { 
   if (isLoading) {
     return (
       <View style={styles.emptyListContainer}>
@@ -152,19 +180,29 @@ const renderEmptyList = (searchText, isLoading) => {
           No se encontró "{searchText}".
         </Text>
         <Text style={styles.emptyListSubText}>
-          Verificá la escritura o registrá un nuevo paciente.
+          Verificá la escritura.
         </Text>
       </View>
     );
   }
   
+  if (filterActive) {
+      return (
+          <View style={styles.emptyListContainer}>
+              <Text style={styles.emptyListText}>
+                  No hay pacientes activos registrados.
+              </Text>
+              <Text style={styles.emptyListSubText}>
+                  Presiona el botón "+" para agregar uno nuevo.
+              </Text>
+          </View>
+      );
+  }
+  
   return (
     <View style={styles.emptyListContainer}>
         <Text style={styles.emptyListText}>
-            No hay pacientes registrados.
-        </Text>
-        <Text style={styles.emptyListSubText}>
-            Presiona el botón "+" para agregar uno nuevo.
+            No hay pacientes inactivos.
         </Text>
     </View>
   );
@@ -172,16 +210,18 @@ const renderEmptyList = (searchText, isLoading) => {
 
 
 // ==========================================================
-// Pantalla principal Pacientes
+// FUNCIÓN BASE DEL COMPONENTE (Manejo de estados de carga)
 // ==========================================================
-export default function Pacientes({ navigation }) {
+export function PacientesList({ navigation, filterActive = true }) { 
   const [isMenuVisible, setIsMenuVisible] = useState(false);
   const [searchText, setSearchText] = useState(''); 
   const [pacientesData, setPacientesData] = useState([]); 
   const [filteredData, setFilteredData] = useState([]); 
+  
+  // 💡 ESTADOS CLAVE: isInitialLoading para pantalla completa, isLoading para refresco
   const [isLoading, setIsLoading] = useState(true); 
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false); // <--- NUEVO ESTADO CLAVE
 
-  // ESTADOS PARA LA ALERTA PERSONALIZADA
   const [alertConfig, setAlertConfig] = useState({
     visible: false,
     type: "error", 
@@ -189,64 +229,71 @@ export default function Pacientes({ navigation }) {
     message: "",
     showCancel: false, 
   });
-  const [patientToDelete, setPatientToDelete] = useState(null); 
+  const [patientToModify, setPatientToModify] = useState(null); 
 
   // Función para obtener pacientes de Firestore
   const fetchPacientes = useCallback(async () => {
-    setIsLoading(true);
+    // 💡 Si no es la primera carga (ya mostramos datos), solo activamos el indicador sutil
+    if (!hasLoadedOnce) {
+        setIsLoading(true);
+    }
+    
     try {
-      const pacientesCol = collection(db, 'pacientes');
-      const pacienteSnapshot = await getDocs(pacientesCol);
+      const pacientesRef = collection(db, 'pacientes');
+      let q = pacientesRef;
+      
+      if (filterActive === false) { 
+          q = query(pacientesRef, where("isActive", "==", false));
+      }
+      
+      const pacienteSnapshot = await getDocs(q); 
       
       let list = pacienteSnapshot.docs.map(doc => {
         const data = doc.data();
         
-        // 💡 CORRECCIÓN: Usar variables temporales con nombres claros, que coincidan con Firestore.
         const lastName = data.lastName || ''; 
         const firstName = data.firstName || ''; 
 
         return {
           id: doc.id, 
-          // 💡 CLAVE: Usamos los nombres de campo (firstName/lastName) para que coincidan con NuevoPaciente.js
-          firstName: firstName, // Lo que antes era 'nombre'
-          lastName: lastName,   // Lo que antes era 'apellido'
+          firstName: firstName, 
+          lastName: lastName,
           dni: data.dni || '',
           email: data.email || '', 
           telefono: data.telefono || '', 
           direccion: data.direccion || '', 
           photoURL: data.photoURL || null, 
-          // Usamos las variables locales para la busqueda y el display
+          isActive: data.isActive !== false, 
           nombreCompletoBusqueda: `${firstName} ${lastName}`.trim(), 
           nombreCompletoDisplay: `${lastName.toUpperCase()}, ${firstName}`, 
           correo: data.email || 'No especificado', 
         };
       });
 
-      // 1. Ordenamiento por Apellido (alfabético)
-      list.sort((a, b) => {
-        // 💡 CORRECCIÓN: Usar el campo correcto en el objeto: 'lastName'
-        return a.lastName.localeCompare(b.lastName);
-      });
+      if (filterActive === true) {
+          list = list.filter(p => p.isActive === true);
+      }
+      
+      list.sort((a, b) => a.lastName.localeCompare(b.lastName));
       
       setPacientesData(list);
       setFilteredData(list); 
 
     } catch (error) {
       console.error("Error al cargar pacientes:", error);
-      // Aseguramos que el error muestre una alerta de 1 botón y no rompa el flujo
       showAlert("error", "Error de Carga", "No se pudieron cargar los pacientes.", false);
     } finally {
       setIsLoading(false);
+      setHasLoadedOnce(true); // 💡 Marcamos que la carga inicial ha ocurrido
     }
-  }, []); 
+  }, [filterActive]); 
 
   useEffect(() => {
-    // Carga inicial
     fetchPacientes();
     
-    // 💡 SOLUCIÓN A DATOS OBSOLETOS: Vuelve a cargar la lista cada vez que la pantalla entra en foco
     const unsubscribe = navigation.addListener('focus', () => {
-        fetchPacientes();
+        // Al regresar a la pantalla, recargamos (esto activa el indicador sutil si hasLoadedOnce es true)
+        fetchPacientes(); 
     });
 
     return unsubscribe; 
@@ -254,7 +301,7 @@ export default function Pacientes({ navigation }) {
 
 
   // ==========================================================
-  // FUNCIONES DE ALERTA PERSONALIZADA
+  // FUNCIONES DE MANEJO DE ESTADO (Desactivación/Activación)
   // ==========================================================
   
   const showAlert = useCallback((type, title, message, showCancel = false) => { 
@@ -264,88 +311,75 @@ export default function Pacientes({ navigation }) {
   const handleDismissAlert = useCallback(() => { 
       setAlertConfig((prev) => {
           if (prev.showCancel) { 
-              setPatientToDelete(null); 
+              setPatientToModify(null); 
           }
           return { ...prev, visible: false };
       });
   }, []); 
 
-  const handleConfirmDelete = useCallback(async () => {
-      if (!patientToDelete) {
+  const handleConfirmDeactivate = useCallback(async () => { 
+      if (!patientToModify) {
           handleDismissAlert(); 
           return;
       }
 
-      const { id } = patientToDelete;
+      const { id, nombreCompletoDisplay, isActive } = patientToModify;
+      const newState = !isActive; 
+      const actionText = newState ? "activar" : "desactivar";
+      const successText = newState ? "activado" : "desactivado";
 
       handleDismissAlert(); 
       setIsLoading(true);
 
       try {
         const pacienteRef = doc(db, "pacientes", id);
-        await deleteDoc(pacienteRef);
+        await updateDoc(pacienteRef, {
+            isActive: newState, 
+        });
         
         await fetchPacientes(); 
         
-        showAlert("success", "Éxito", "Paciente eliminado correctamente.", false);
+        showAlert("success", "Éxito", `Paciente ${nombreCompletoDisplay} ha sido ${successText} correctamente.`, false);
       } catch (error) {
-        console.error("Error al eliminar paciente:", error);
-        showAlert("error", "Error", "No se pudo eliminar el paciente. Inténtalo de nuevo.", false); 
+        console.error(`Error al ${actionText} paciente:`, error);
+        showAlert("error", "Error", `No se pudo ${actionText} al paciente. Inténtalo de nuevo.`, false); 
         setIsLoading(false); 
       } finally {
-          setPatientToDelete(null); 
+          setPatientToModify(null); 
       }
-  }, [patientToDelete, fetchPacientes, showAlert, handleDismissAlert]);
+  }, [patientToModify, fetchPacientes, showAlert, handleDismissAlert]);
 
 
-  const handleDelete = (id, nombreCompletoDisplay) => {
-    setPatientToDelete({ id, nombreCompletoDisplay });
+  const handleDeactivate = (patientId, nombreCompletoDisplay, isActive) => { 
+    setPatientToModify({ id: patientId, nombreCompletoDisplay, isActive });
     
+    const title = isActive ? "Confirmar Desactivación" : "Confirmar Activación";
+    const message = isActive 
+        ? `¿Estás seguro de que deseas desactivar a ${nombreCompletoDisplay}? Ya no aparecerá en la lista de activos.`
+        : `¿Estás seguro de que deseas reactivar a ${nombreCompletoDisplay}? Volverá a aparecer en la lista de activos.`;
+        
     showAlert(
         "error", 
-        "Confirmar Eliminación", 
-        `¿Estás seguro de que deseas eliminar a ${nombreCompletoDisplay}? Esta acción no se puede deshacer.`,
+        title, 
+        message,
         true 
     );
   };
   
-  // Función para ver detalles del paciente (Modo solo lectura)
   const handleViewDetails = (patient) => {
     navigation.navigate('NuevoPaciente', { 
-        patientData: {
-            id: patient.id,
-            // 💡 CORRECCIÓN: Usar patient.firstName y patient.lastName directamente
-            firstName: patient.firstName,
-            lastName: patient.lastName,
-            email: patient.email,
-            dni: patient.dni,
-            telefono: patient.telefono,
-            direccion: patient.direccion,
-            photoURL: patient.photoURL, 
-        },
+        patientData: patient,
         isViewMode: true, 
     });
   };
 
-  // Función para manejar la edición (Modo edición normal)
   const handleEdit = (patient) => {
     navigation.navigate('NuevoPaciente', { 
-        patientData: {
-            id: patient.id,
-            // 💡 CORRECCIÓN: Usar patient.firstName y patient.lastName directamente
-            firstName: patient.firstName,
-            lastName: patient.lastName,
-            email: patient.email,
-            dni: patient.dni,
-            telefono: patient.telefono,
-            direccion: patient.direccion,
-            photoURL: patient.photoURL, 
-        },
+        patientData: patient,
         isViewMode: false, 
     });
   };
 
-  // Función para manejar la búsqueda en tiempo real
   const handleSearch = (text) => {
     setSearchText(text);
     
@@ -353,7 +387,6 @@ export default function Pacientes({ navigation }) {
       const lowercasedText = text.toLowerCase();
       
       const newFilteredData = pacientesData.filter(item => { 
-        // 💡 CORRECCIÓN: nombreCompletoBusqueda ya usa firstName/lastName
         return (
           item.nombreCompletoBusqueda.toLowerCase().includes(lowercasedText) ||
           (item.dni && item.dni.includes(text)) 
@@ -365,14 +398,18 @@ export default function Pacientes({ navigation }) {
     }
   };
   
-  if (isLoading && filteredData.length === 0) {
+  const screenTitle = filterActive ? "Pacientes Activos" : "Pacientes Inactivos";
+  const currentRouteName = navigation.getState().routes[navigation.getState().index].name;
+
+  // 💡 CLAVE: Pantalla de carga COMPLETA solo si es la primera vez (para evitar mostrar datos vacíos)
+  if (isLoading && !hasLoadedOnce) {
     return (
         <LinearGradient 
           colors={['#20d3c4ff', '#9FE2CF']} 
           style={[styles.contenedorHeader, {justifyContent: 'center', alignItems: 'center'}]}
         >
             <ActivityIndicator size="large" color="#fff" />
-            <Text style={{color: '#fff', marginTop: 10, fontSize: 16}}>Cargando pacientes...</Text>
+            <Text style={{color: '#fff', marginTop: 10, fontSize: 16}}>{`Cargando pacientes ${filterActive ? 'activos' : 'inactivos'}...`}</Text>
         </LinearGradient>
     );
   }
@@ -382,9 +419,9 @@ export default function Pacientes({ navigation }) {
 
       <StatusBar barStyle="light-content" backgroundColor="#20d3c4ff" />
 
-      {/* Header Superior */}
+      {/* Header Superior (Título dinámico) */}
       <View style={styles.header}>
-        <Text style={styles.welcomeText}>Pacientes</Text>
+        <Text style={styles.welcomeText}>{screenTitle}</Text>
         <TouchableOpacity 
           style={styles.menuButton} 
           onPress={() => setIsMenuVisible(true)}
@@ -398,7 +435,7 @@ export default function Pacientes({ navigation }) {
         <View style={styles.turnosHeader}>
               <TextInput
                 style={styles.input}
-                placeholder= "Buscar paciente (Nombre, Apellido o DNI)" 
+                placeholder= {`Buscar paciente ${filterActive ? 'activo' : 'inactivo'} (Nombre, Apellido o DNI)`} 
                 placeholderTextColor="#666"
                 value={searchText} 
                 onChangeText={handleSearch} 
@@ -416,30 +453,40 @@ export default function Pacientes({ navigation }) {
                     patient={item} 
                     onViewDetails={handleViewDetails} 
                     onEdit={handleEdit}
-                    onDelete={handleDelete}
+                    onDeactivate={handleDeactivate} 
                 />
             )}
             keyExtractor={item => item.id}
             contentContainerStyle={styles.turnosList}
             showsVerticalScrollIndicator={false} 
-            ListEmptyComponent={() => renderEmptyList(searchText, isLoading)} 
+            ListEmptyComponent={() => renderEmptyList(searchText, isLoading, filterActive)} 
           />
+           {/* 💡 INDICADOR DE REFRESH EN SEGUNDO PLANO */}
+          {isLoading && hasLoadedOnce && (
+              <View style={styles.refreshingOverlay}>
+                  <ActivityIndicator size="small" color="#3b82f6" />
+              </View>
+          )}
         </LinearGradient>
       </View>
             
-      {/* Botón Flotante para Agregar Nuevo Paciente */}
-      <TouchableOpacity
-        style={styles.fabButton}
-        onPress={() => navigation.navigate('NuevoPaciente')}
-      >
-        <Ionicons name="add" size={30} color="#fff" />
-      </TouchableOpacity>
+      {/* Botón Flotante para Agregar Nuevo Paciente (Solo visible en Activos) */}
+      {filterActive && (
+          <TouchableOpacity
+              style={styles.fabButton}
+              onPress={() => navigation.navigate('NuevoPaciente')}
+          >
+              <Ionicons name="add" size={30} color="#fff" />
+          </TouchableOpacity>
+      )}
+
 
       {/* Menú Modal */}
       <MenuModal 
         visible={isMenuVisible} 
         onClose={() => setIsMenuVisible(false)} 
         navigation={navigation}
+        currentRouteName={currentRouteName} 
       />
 
       {/* COMPONENTE DE ALERTA PERSONALIZADA */}
@@ -450,11 +497,25 @@ export default function Pacientes({ navigation }) {
           message={alertConfig.message}
           showCancel={alertConfig.showCancel} 
           onClose={handleDismissAlert} 
-          onConfirm={handleConfirmDelete} 
+          onConfirm={handleConfirmDeactivate} 
+          buttonText={patientToModify?.isActive ? "DESACTIVAR" : "ACTIVAR"} 
       />
     </View>
   );
 }
+
+// ==========================================================
+// EXPORTACIONES Y ESTILOS
+// ==========================================================
+
+// 1. Componente Wrapper para Pacientes Activos (la pantalla original)
+export function PacientesActivosScreen({ navigation }) {
+    return <PacientesList navigation={navigation} filterActive={true} />;
+}
+
+// 2. Exportación por defecto
+export default PacientesActivosScreen; 
+
 
 const styles = StyleSheet.create({
   contenedorHeader: {
@@ -519,17 +580,43 @@ const styles = StyleSheet.create({
   cardContent: {
       padding: 15,
   },
-  pacienteCardGlow: {
+  pacienteCardGlowActive: { 
     borderLeftWidth: 6,
-    borderLeftColor: '#1595a6', 
+    borderLeftColor: '#1595a6', // Verde Agua para activo
     borderRadius: 12, 
     overflow: 'hidden', 
   },
-  // 💡 ESTILOS AÑADIDOS PARA LA FOTO
+  pacienteCardGlowInactive: { 
+    borderLeftWidth: 6,
+    borderLeftColor: '#ff6b6b', // Rojo para inactivo
+    borderRadius: 12, 
+    overflow: 'hidden', 
+    opacity: 0.9, 
+  },
+  pacienteEstadoActive: {
+    fontSize: 12,
+    color: '#1595a6',
+    fontWeight: 'bold',
+  },
+  pacienteEstadoInactive: {
+    fontSize: 12,
+    color: '#ff6b6b',
+    fontWeight: 'bold',
+  },
+  menuItemActive: {
+    backgroundColor: '#e6f7ff',
+    borderLeftWidth: 4,
+    borderLeftColor: '#3b82f6',
+  },
+  menuItemTextActive: { 
+    fontWeight: 'bold',
+    color: '#3b82f6',
+  },
+  
   photoHeaderContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10, // Separación entre la foto/nombre y los detalles
+    marginBottom: 10, 
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
     paddingBottom: 10,
@@ -547,16 +634,14 @@ const styles = StyleSheet.create({
     height: 35,
     borderRadius: 17.5,
     marginRight: 10,
-    backgroundColor: '#3b82f6', // Color de fondo del placeholder
+    backgroundColor: '#3b82f6', 
     justifyContent: 'center',
     alignItems: 'center',
   },
-  // FIN ESTILOS DE FOTO
   
   pacienteNombre: {
     fontSize: 16, 
     fontWeight: 'bold',
-    // Eliminamos el marginBottom aquí ya que está en photoHeaderContainer
     color: '#333',
   },
   pacienteDni: { 
@@ -594,6 +679,9 @@ const styles = StyleSheet.create({
   },
   buttonHalfWidth: {
     width: '48%', 
+  },
+  buttonFullWidth: { 
+    width: '100%',
   },
   editButton: {
     backgroundColor: '#3b82f6', 
@@ -686,5 +774,16 @@ const styles = StyleSheet.create({
     color: '#777',
     marginTop: 5,
     textAlign: 'center',
-  }
+  },
+  refreshingOverlay: {
+    position: 'absolute',
+    top: 0, 
+    left: 0, 
+    right: 0, 
+    height: 50, // Pequeño indicador en la parte superior
+    justifyContent: 'center', 
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.5)', // Fondo semitransparente
+    zIndex: 10,
+  },
 });

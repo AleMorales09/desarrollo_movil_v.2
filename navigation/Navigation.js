@@ -8,7 +8,10 @@ import SignUp from '../screens/SignUp';
 import NuevoPaciente from '../screens/NuevoPaciente';
 import AppTabs from './AppTabs'; // Contiene el Bottom Tab Navigator
 import ForgotPassword from '../screens/ForgotPassword';
-import Pacientes from '../screens/Pacientes';
+// 💡 CAMBIO CLAVE: Importamos el componente específico para activos
+import { PacientesActivosScreen } from '../screens/Pacientes'; 
+// 💡 NUEVA LÍNEA: Importamos la nueva pantalla de inactivos
+import PacientesInactivosScreen from '../screens/PacientesInactivos'; 
 import Turnos from '../screens/Turnos';
 import Home from '../screens/Home';
 
@@ -43,8 +46,13 @@ function Navigation() {
               component={NuevoPaciente} 
               options={{presentation: 'modal'}}
             />
-            <Stack.Screen name="Pacientes" component={Pacientes} />
+            {/* 💡 CAMBIO: Usamos PacientesActivosScreen para la ruta "Pacientes" */}
+            <Stack.Screen name="Pacientes" component={PacientesActivosScreen} /> 
+            {/* 💡 NUEVA RUTA: Para la lista de inactivos */}
+            <Stack.Screen name="PacientesInactivos" component={PacientesInactivosScreen} />
             <Stack.Screen name="Turnos" component={Turnos} />
+            <Stack.Screen name="Personal" component={Home} /> 
+            <Stack.Screen name="Tratamientos" component={Home} />
     
             <Stack.Screen name="Login" component={Login} />
             <Stack.Screen name="SignUp" component={SignUp} />

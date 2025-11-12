@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react'; 
+import React, { useState, useMemo, useEffect, useCallback } from 'react'; 
 import { 
     View, 
     Text, 
@@ -13,7 +13,7 @@ import {
     ActivityIndicator 
 } from 'react-native';
 import { FontAwesome, Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from "expo-linear-gradient"; // 💡 Requerido para el botón de cámara
+import { LinearGradient } from "expo-linear-gradient"; 
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import Alert from '../components/Alert';
 import { db } from '../src/config/firebaseConfig';
@@ -28,7 +28,7 @@ const CLOUDINARY_CLOUD_NAME = 'dcambilud';
 const CLOUDINARY_UPLOAD_PRESET = 'consultorio_foto';
 
 export default function NuevoPaciente({ navigation }) {
-const route = useRoute(); 
+  const route = useRoute(); 
   const patientData = route.params?.patientData || null; 
   const isViewMode = route.params?.isViewMode || false; 
 
@@ -41,7 +41,7 @@ const route = useRoute();
   const [telefono, setTelefono] = useState('');
   const [direccion, setDireccion] = useState('');
   
-  // --- ESTADOS DE ERROR (CORREGIDOS/AÑADIDOS) ---
+  // --- ESTADOS DE ERROR ---
   const [dniError, setDniError] = useState(false); 
   const [telefonoError, setTelefonoError] = useState(false); 
   const [firstNameError, setFirstNameError] = useState(false); 
@@ -53,6 +53,11 @@ const route = useRoute();
   const [patientPhotoURL, setPatientPhotoURL] = useState(null); 
   const [uploading, setUploading] = useState(false); 
   const [showImageSourceOptions, setShowImageSourceOptions] = useState(false); 
+  const [isImageLoading, setIsImageLoading] = useState(false); 
+
+  // 💡 CLAVE: Estado para guardar los datos originales y de inicialización
+  const [originalData, setOriginalData] = useState({}); 
+  const [isProcessingInitialData, setIsProcessingInitialData] = useState(true); // <-- ESTADO INICIAL A TRUE
 
   // --- ESTADO DE ALERTA ---
   const [alertConfig, setAlertConfig] = useState({
@@ -60,50 +65,85 @@ const route = useRoute();
     type: "info",
     title: "",
     message: "",
+    isConfirmation: false, 
     }
   );
 
   useEffect(() => {
-    if (patientData) {
-      setId(patientData.id);
-      setFirstName(patientData.firstName || '');
-      setLastName(patientData.lastName || '');
-      setEmail(patientData.email || '');
-      setDni(patientData.dni || '');
-      setTelefono(patientData.telefono || '');
-      setDireccion(patientData.direccion || '');
-      
-      setPatientPhotoURL(patientData.photoURL || null); 
-      setImageUri(null); // Asegurar que no haya una foto local temporal en este modo
-      
-      if (isViewMode) {
-        navigation.setOptions({ title: 'Detalles del Paciente' });
-      } else {
-        navigation.setOptions({ title: 'Editar Paciente' });
-      }
+    // 💡 1. INICIAR PROCESAMIENTO
+    setIsProcessingInitialData(true); 
+
+    const dataToLoad = patientData || {};
+    
+    // Setear los estados
+    setId(dataToLoad.id || null);
+    setFirstName(dataToLoad.firstName || '');
+    setLastName(dataToLoad.lastName || '');
+    setEmail(dataToLoad.email || '');
+    setDni(dataToLoad.dni || '');
+    setTelefono(dataToLoad.telefono || '');
+    setDireccion(dataToLoad.direccion || '');
+    setPatientPhotoURL(dataToLoad.photoURL || null); 
+    setImageUri(null); 
+
+    // Guardar los datos originales
+    setOriginalData({
+        firstName: dataToLoad.firstName || '',
+        lastName: dataToLoad.lastName || '',
+        email: dataToLoad.email || '',
+        dni: dataToLoad.dni || '',
+        telefono: dataToLoad.telefono || '',
+        direccion: dataToLoad.direccion || '',
+        photoURL: dataToLoad.photoURL || null, 
+    });
+    
+    // Configurar opciones de navegación
+    if (isViewMode) {
+      navigation.setOptions({ title: 'Detalles del Paciente' });
     } else {
-      setId(null); 
-      setFirstName('');
-      setLastName('');
-      setEmail('');
-      setDni('');
-      setTelefono('');
-      setDireccion('');
-      setPatientPhotoURL(null); 
-      setImageUri(null); 
-      navigation.setOptions({ title: 'Nuevo Paciente' });
+      navigation.setOptions({ title: (dataToLoad.id ? 'Editar Paciente' : 'Nuevo Paciente') });
     }
-  }, [patientData, navigation, isViewMode]);
+    
+    // 💡 2. FINALIZAR PROCESAMIENTO SÍNCRONICAMENTE
+    // Esto resuelve el problema de parpadeo al asegurar que los datos estén en los estados antes del render.
+    setIsProcessingInitialData(false); 
+    
+  }, [patientData, navigation, isViewMode]); 
+
+
+  // 💡 FUNCIÓN CLAVE: Detección de cambios pendientes
+  const hasUnsavedChanges = useMemo(() => {
+    if (isViewMode) return false;
+
+    // Si es un nuevo registro y hay datos en algún campo
+    if (!id && (firstName || lastName || email || dni || telefono || direccion || imageUri)) {
+        return true;
+    }
+    
+    // Comparar campo por campo (solo si los datos originales existen)
+    if (firstName !== originalData.firstName) return true;
+    if (lastName !== originalData.lastName) return true;
+    if (email !== originalData.email) return true;
+    if (dni !== originalData.dni) return true;
+    if (telefono !== originalData.telefono) return true;
+    if (direccion !== originalData.direccion) return true;
+    
+    // Si se seleccionó una nueva imagen
+    if (imageUri !== null) return true;
+
+    return false;
+  }, [firstName, lastName, email, dni, telefono, direccion, imageUri, originalData, isViewMode, id]);
+
 
   const handleAvatarPress = () => {
-    if (isViewMode || uploading) return; 
+    if (isViewMode || uploading || isProcessingInitialData) return; 
     setShowImageSourceOptions(true);
   };
   
   const pickImage = async (source) => {
     setShowImageSourceOptions(false); 
 
-    if (isViewMode || uploading) return;
+    if (isViewMode || uploading || isProcessingInitialData) return;
 
     if (Platform.OS !== 'web') {
         let permissionResult;
@@ -142,6 +182,7 @@ const route = useRoute();
 
     if (!result.canceled) {
         setImageUri(result.assets[0].uri);
+        setIsImageLoading(true); 
     }
   };
 
@@ -167,12 +208,11 @@ const route = useRoute();
         const data = await response.json();
 
         if (data.secure_url) {
-            setUploading(false);
             return data.secure_url;
         } else {
             console.error("Cloudinary response error:", data);
             RNAlert.alert("Error de subida", "Cloudinary no devolvió una URL válida.");
-            setUploading(false);
+            setUploading(false); 
             return null;
         }
     } catch (e) {
@@ -183,12 +223,33 @@ const route = useRoute();
     }
   };
   
-  const handleCancel = () => {
-      navigation.goBack();
+  // FUNCIÓN DE CONFIRMACIÓN DE DESCARTE
+  const handleConfirmDiscard = () => {
+    closeAlert();
+    navigation.goBack();
   };
 
-  const showAlert = (type, title, message) => {
-    setAlertConfig({ visible: true, type, title, message });
+  // FUNCIÓN CLAVE: Muestra el alerta condicional al intentar salir
+  const handleCancel = () => {
+    
+    // Si estamos editando/creando y hay cambios, pedimos confirmación
+    if (!isViewMode && hasUnsavedChanges) {
+        showAlert(
+            "error", 
+            "Confirmar Salida",
+            "¿Estás seguro que deseas salir? Los cambios realizados se perderán.",
+            true 
+        );
+        return;
+    }
+
+    // Si no hay cambios o estamos en modo vista, simplemente salimos
+    navigation.goBack();
+  };
+
+
+  const showAlert = (type, title, message, isConfirmation = false) => {
+    setAlertConfig({ visible: true, type, title, message, isConfirmation });
     if (type === "success") {
       setTimeout(() => {
         setAlertConfig((prev) => ({ ...prev, visible: false }));
@@ -207,7 +268,7 @@ const route = useRoute();
   };
 
   const handleDniChange = (text) => {
-    if (!isViewMode) {
+    if (!isViewMode && !isProcessingInitialData) {
       const filteredText = text.replace(/\D/g, ''); 
       setDni(filteredText);
       setDniError(false); 
@@ -215,7 +276,7 @@ const route = useRoute();
   };
 
   const handleTelefonoChange = (text) => { 
-    if (!isViewMode) {
+    if (!isViewMode && !isProcessingInitialData) {
       const filteredText = text.replace(/\D/g, '');
       setTelefono(filteredText);
       setTelefonoError(false); 
@@ -228,7 +289,7 @@ const route = useRoute();
   };
 
   const handleAddressChange = (text) => {
-    if (!isViewMode) {
+    if (!isViewMode && !isProcessingInitialData) {
       const addressRegex = /[^a-zA-ZáéíóúÁÉÍÓÚñÑ0-9\s.,\/-]/g;
       const filteredText = text.replace(addressRegex, '');
       setDireccion(filteredText); 
@@ -237,7 +298,7 @@ const route = useRoute();
 
 
   const handleFirstNameBlur = () => {
-    if (firstName && !validateName(firstName) && !isViewMode) {
+    if (firstName && !validateName(firstName) && !isViewMode && !isProcessingInitialData) {
       setFirstNameError(true);
     } else {
       setFirstNameError(false);
@@ -245,7 +306,7 @@ const route = useRoute();
   };
 
   const handleLastNameBlur = () => {
-    if (lastName && !validateName(lastName) && !isViewMode) {
+    if (lastName && !validateName(lastName) && !isViewMode && !isProcessingInitialData) {
       setLastNameError(true);
     } else {
       setLastNameError(false);
@@ -254,7 +315,7 @@ const route = useRoute();
 
 
   const handleEmailBlur = () => {
-    if (email && !validateEmail(email) && !isViewMode) {
+    if (email && !validateEmail(email) && !isViewMode && !isProcessingInitialData) {
       setEmailError(true);
     } else {
       setEmailError(false);
@@ -262,7 +323,7 @@ const route = useRoute();
   };
 
   const handleFirstNameChange = (text) => {
-    if (!isViewMode) {
+    if (!isViewMode && !isProcessingInitialData) {
       const filteredText = text.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]/g, ''); 
       setFirstName(filteredText);
       if (filteredText && !validateName(filteredText)) {
@@ -274,7 +335,7 @@ const route = useRoute();
   };
 
   const handleLastNameChange = (text) => {
-    if (!isViewMode) {
+    if (!isViewMode && !isProcessingInitialData) {
       const filteredText = text.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]/g, ''); 
       setLastName(filteredText);
       if (filteredText && !validateName(filteredText)) {
@@ -286,7 +347,7 @@ const route = useRoute();
   };
     
   const handleNewPaciente = async () => {
-    if (isViewMode || uploading) return; 
+    if (isViewMode || uploading || isProcessingInitialData) return; 
 
     const trimmedFirstName = firstName.trim();
     const trimmedLastName = lastName.trim();
@@ -359,6 +420,7 @@ const route = useRoute();
         const uploadedURL = await uploadImageToCloudinary(imageUri);
         if (uploadedURL) {
             finalPhotoURL = uploadedURL;
+            setIsImageLoading(true);
         } else {
             return; 
         }
@@ -391,15 +453,9 @@ const route = useRoute();
         showAlert("success", "Paciente Registrado", "El paciente ha sido guardado correctamente.");
       }
       
-      // Limpiar estados
-      setFirstName('');
-      setLastName('');
-      setDni('');
-      setEmail('');
-      setTelefono('');
-      setDireccion('');
-      setImageUri(null); 
-      setPatientPhotoURL(null); 
+      // 💡 CORRECCIÓN CLAVE: No limpiamos los estados para evitar el parpadeo.
+      setIsImageLoading(false); 
+      setUploading(false); 
 
     } catch (error) {
       console.error("Error al guardar/actualizar el paciente:", error);
@@ -418,7 +474,6 @@ const route = useRoute();
   
   const displayImageUri = imageUri || patientPhotoURL;
 
-
   return (
     <>
       <StatusBar barStyle="light-content" />
@@ -435,43 +490,83 @@ const route = useRoute();
             style={styles.gradient}
           >
             <View style={styles.card}>
+              
+              {/* 💡 OVERLAY DE CARGA QUE APARECE SOBRE EL FORMULARIO (para edición/vista) */}
+              {isProcessingInitialData && (
+                  <View style={styles.fullOverlay}>
+                      <ActivityIndicator size="large" color="#3b82f6" />
+                      <Text style={{ marginTop: 10, fontSize: 16, color: '#333' }}>
+                          Cargando datos...
+                      </Text>
+                  </View>
+              )}
+              
+              {/* Botón Cerrar (X) - Usa handleCancel */}
+              <TouchableOpacity 
+                  style={styles.closeButton} 
+                  onPress={handleCancel} 
+                  // Deshabilitar si está procesando la carga inicial
+                  disabled={uploading || isImageLoading || isProcessingInitialData} 
+              >
+                  <Ionicons name="close-circle" size={35} color="#ff6b6b" /> 
+              </TouchableOpacity>
+
               <Text style={styles.title}>{titleText}</Text>
               
-              {/* 💡 CONTENEDOR PRINCIPAL DE LA FOTO (para posicionamiento absoluto del botón) */}
+              {/* CONTENEDOR PRINCIPAL DE LA FOTO */}
               <View style={styles.photoWrapper}> 
                   
-                  {/* Área de la foto: al tocarla se abre el modal */}
+                  {/* Área de la foto */}
                   <TouchableOpacity 
                       style={styles.photoContainer} 
                       onPress={handleAvatarPress} 
-                      disabled={isViewMode || uploading} 
+                      disabled={isViewMode || uploading || isImageLoading} 
                   >
                       {displayImageUri ? (
-                          <Image source={{ uri: displayImageUri }} style={styles.profileImage} />
+                          <Image 
+                              source={{ uri: displayImageUri }} 
+                              style={[
+                                styles.profileImage, 
+                                isImageLoading ? { opacity: 0 } : { opacity: 1 }
+                              ]}
+                              onLoad={() => {
+                                  setIsImageLoading(false);
+                                  setUploading(false);      
+                              }}
+                              onError={() => {
+                                  setIsImageLoading(false); 
+                                  setUploading(false);
+                                  setPatientPhotoURL(null); 
+                                  setImageUri(null);
+                                  RNAlert.alert("Error de Carga", "No se pudo cargar la imagen. Inténtalo de nuevo.");
+                              }}
+                          />
                       ) : (
                           <View style={styles.photoPlaceholder}>
                               <Ionicons name="person-outline" size={50} color="#ccc" />
                               <Text style={styles.photoText}>
-                                  {uploading ? "Subiendo..." : "Añadir foto"}
+                                  {"Añadir foto"}
                               </Text>
                           </View>
                       )}
 
-                      {/* Indicador de carga */}
-                      {uploading && (
+                      {/* Indicador de Carga */}
+                      {(uploading || isImageLoading) && ( 
                           <View style={styles.uploadingOverlay}>
                             <ActivityIndicator size="small" color="#fff" />
-                            <Text style={styles.uploadingText}>Subiendo...</Text>
+                            <Text style={styles.uploadingText}>
+                                {uploading ? "Subiendo..." : "Cargando..."}
+                            </Text>
                           </View>
                       )}
                   </TouchableOpacity>
                   
-                  {/* 💡 BOTÓN DE CÁMARA (Estilo Perfil.js) - Se oculta en modo vista */}
+                  {/* BOTÓN DE CÁMARA - Se oculta en modo vista */}
                   {!isViewMode && (
                       <TouchableOpacity
                           style={styles.avatarEditButton}
                           onPress={handleAvatarPress} 
-                          disabled={uploading}
+                          disabled={uploading || isImageLoading}
                       >
                           <LinearGradient
                               colors={["#64bae8", "#4a90e2"]} 
@@ -504,8 +599,6 @@ const route = useRoute();
                 <Text style={styles.errorText}>El nombre es demasiado corto</Text>
               )}
 
-              {/* ... El resto de los TextInputs se mantienen igual ... */}
-              
               <Text style={styles.label}>Apellido</Text>
               <View style={inputGroupStyle(lastNameError)}>
                 <TextInput
@@ -584,22 +677,17 @@ const route = useRoute();
                 />
               </View>
               
-              {isViewMode ? (
-                <View style={styles.buttonContainerOnlyOne}>
-                    <TouchableOpacity style={styles.buttonBack} onPress={handleCancel}>
-                        <Text style={styles.buttonText}>VOLVER A LA LISTA</Text>
-                    </TouchableOpacity>
-                </View>
-              ) : (
+              {/* Muestra botones solo en modo edición/registro */}
+              {!isViewMode && (
                 <View style={styles.buttonContainer}>
-                    <TouchableOpacity style={styles.cancelButton} onPress={handleCancel}>
+                    <TouchableOpacity style={styles.cancelButton} onPress={handleCancel} disabled={uploading || isImageLoading}>
                         <Text style={styles.buttonText}>CANCELAR</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity 
-                        style={[styles.button, uploading && styles.buttonDisabled]} 
+                        style={[styles.button, (uploading || isImageLoading) && styles.buttonDisabled]} 
                         onPress={handleNewPaciente}
-                        disabled={uploading}
+                        disabled={uploading || isImageLoading}
                     >
                         <Text style={styles.buttonText}>{uploading ? "SUBIENDO FOTO..." : buttonText}</Text>
                     </TouchableOpacity>
@@ -611,7 +699,7 @@ const route = useRoute();
         </View>
       </KeyboardAwareScrollView>
       
-      {/* 💡 MODAL DE SELECCIÓN DE IMAGEN */}
+      {/* MODAL DE SELECCIÓN DE IMAGEN */}
       <Modal 
           animationType="fade" 
           transparent={true} 
@@ -641,12 +729,16 @@ const route = useRoute();
           </TouchableOpacity>
       </Modal>
 
+      {/* Alerta de Confirmación de Salida */}
       <Alert
         visible={alertConfig.visible}
         type={alertConfig.type}
         title={alertConfig.title}
         message={alertConfig.message}
-        onClose={closeAlert}
+        onConfirm={alertConfig.isConfirmation ? handleConfirmDiscard : closeAlert} 
+        onClose={closeAlert} 
+        showCancel={alertConfig.isConfirmation} 
+        buttonText={alertConfig.isConfirmation ? "PERDER CAMBIOS" : "Aceptar"}
       />
     </>
   );
@@ -676,6 +768,23 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
+    position: 'relative', 
+  },
+  // 💡 ESTILO CLAVE para el overlay
+  fullOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 8,
+    zIndex: 20, 
+  },
+  closeButton: {
+    position: 'absolute',
+    top: 5,
+    right: 5,
+    zIndex: 10,
+    padding: 5,
   },
   title: {
     fontSize: 24,
@@ -684,7 +793,6 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     textAlign: "center",
   },
-  // 💡 ESTILOS AÑADIDOS/MODIFICADOS PARA EL BOTÓN DE CÁMARA
   photoWrapper: {
     alignSelf: 'center',
     marginBottom: 20,
@@ -716,6 +824,9 @@ const styles = StyleSheet.create({
   profileImage: {
     width: '100%',
     height: '100%',
+    position: 'absolute', 
+    top: 0,
+    left: 0,
   },
   uploadingOverlay: {
     position: 'absolute',
@@ -726,17 +837,17 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
+    zIndex: 5, 
   },
   uploadingText: {
     color: '#fff',
     marginTop: 5,
     fontSize: 14,
   },
-  // ESTILOS DEL BOTÓN DE CÁMARA (COPIADOS DE Perfil.js)
   avatarEditButton: {
     position: 'absolute',
-    bottom: 2, // Ajuste ligero para que quede bien posicionado
-    right: 2,  // Ajuste ligero para que quede bien posicionado
+    bottom: 2, 
+    right: 2, 
   },
   avatarEditButtonGradient: {
     width: 35,
@@ -747,7 +858,6 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#fff',
   },
-  // FIN ESTILOS DE FOTO Y BOTÓN
   
   label: {
     fontSize: 18,
@@ -811,12 +921,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     width: '48%',
   },
-  buttonContainerOnlyOne: {
+  buttonContainerOnlyOne: { 
     marginTop: 25,
     alignItems: 'center',
     width: '100%',
   },
-  buttonBack: {
+  buttonBack: { 
     backgroundColor: '#05f7c2', 
     paddingVertical: 12,
     borderRadius: 25,
@@ -828,7 +938,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "bold",
   },
-  // ESTILOS DEL MODAL (COPIADOS DE Perfil.js)
   menuOverlay: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.5)",

@@ -15,7 +15,7 @@ const AnimatedIcon = ({ iconName, size, color, focused }) => {
 
     useEffect(() => {
         Animated.spring(scaleAnim, {
-            toValue: focused ? 2.3 : 1, 
+            toValue: focused ? 1.4 : 1, 
             friction: 5, 
             useNativeDriver: true,
         }).start();
@@ -74,7 +74,7 @@ function AppTabs({ initialRouteParams }) {
           height: 60,
           position: 'absolute',
           margin: 25,
-          marginBottom: 38,
+          marginBottom: 15,
           borderRadius: 16,
           justifyContent: 'center',
           alignItems: 'center',

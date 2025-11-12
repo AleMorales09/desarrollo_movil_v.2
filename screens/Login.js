@@ -20,6 +20,7 @@ export default function Login({ navigation }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [emailError, setEmailError] = useState(false);
   const [alertConfig, setAlertConfig] = useState({
     visible: false,
     type: "info",
@@ -45,10 +46,21 @@ export default function Login({ navigation }) {
     //   navigation.reset({ index: 0, routes: [{ name: "App" }] });
     // }
   };
+  //función similar a la del registro (Es una prueba, pronto depurar código y crear un componente de validaciones)
+  const validateEmail = (text) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(text);
+  };
 
   const handleLogin = async () => {
+    setEmailError(false);
     if (!email || !password) {
       showAlert("error", "Por favor, complete ambos campos.");
+      return;
+    }
+    if (!validateEmail(email)) { 
+      setEmailError(true);
+      showAlert("error", "Correo Inválido", "El formato del correo electrónico no es válido.");
       return;
     }
     try {
@@ -124,16 +136,35 @@ export default function Login({ navigation }) {
                 resizeMode="contain"
               />
               <Text style={styles.label}>Correo</Text>
-              <View style={styles.inputGroup}>
+              {/* 1. InputGroup con estilo de error condicional */}
+              <View style={[styles.inputGroup, emailError && styles.inputGroupError]}> 
                 <TextInput
                   style={styles.input}
                   placeholder="Correo electrónico"
                   value={email}
-                  onChangeText={setEmail}
+                  onChangeText={text => {
+                    setEmail(text);
+                    setEmailError(false); // Limpiar error al escribir
+                  }}
+                  onBlur={() => { // Validar al perder el foco
+                      if (email && !validateEmail(email)) {
+                          setEmailError(true);
+                          // La alerta se mostrará si intenta loguear, pero el feedback visual funciona al salir del campo.
+                      } else {
+                          setEmailError(false);
+                      }
+                  }}
                   keyboardType="email-address"
                   autoCapitalize="none"
+                  placeholderTextColor="#888" 
                 />
               </View>
+              
+              {/* 2. Mensaje de error condicional, se muestra si emailError es true */}
+              {emailError && (
+                  <Text style={styles.errorText}>Formato de correo inválido (ej: usuario@dominio.com)</Text>
+              )}
+
               <Text style={styles.label}>Contraseña</Text>
               <View style={styles.inputGroup}>
                 <TextInput
@@ -247,6 +278,29 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     borderWidth: 1,
     borderColor: "#e0e0e0",
+  },
+  inputGroup: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    borderRadius: 8,
+    // Reducimos marginBottom para darle espacio a errorText, si existe.
+    marginBottom: 5, 
+    paddingHorizontal: 10,
+    borderWidth: 1,
+    borderColor: "#e0e0e0",
+  },
+  
+  // <-- ESTILOS A AÑADIR para el feedback visual
+  inputGroupError: {
+    borderColor: "#ff6b6b",
+    borderWidth: 2,
+  },
+  errorText: {
+    color: "#ff6b6b",
+    fontSize: 12,
+    marginBottom: 15, // Espacio antes del siguiente campo
+    marginTop: 0,
   },
   input: {
     flex: 1,

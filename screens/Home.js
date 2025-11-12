@@ -571,6 +571,7 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap', 
     justifyContent: 'space-between',
     marginTop: 40,
+    paddingBottom: 100,
   },
 
   // Estilo general de cada tarjeta (para LinearGradient)
